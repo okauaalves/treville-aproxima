@@ -1,0 +1,78 @@
+history:
+Histórico
+Limpar
+Todas
+Lidas
+Gravadas
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:06
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:06
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:06
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:06
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:01
+Excluir
+WhatsApp
+NTAG213 · Hoje, 00:01
+Excluir
+WhatsApp
+NTAG213 · Ontem, 23:58
+Excluir
+WhatsApp
+NTAG213 · Ontem, 23:58
+Excluir
+WhatsApp
+NTAG213 · Ontem, 23:56
+Excluir
+WhatsApp
+NTAG213 · Ontem, 23:56
+Início
+Histórico
+Templates
+Ajustes
+
+before-diag:
+Diagnóstico NFC
+A análise só lê a tag. Nada é gravado.
+NFC disponível
+Modo de teste neste navegador.
+NFC ligado
+A leitura está liberada.
+Permissão
+Modo de teste: o NFC deste navegador é simulado.
+Navegador / Web NFC
+Modo de teste: este navegador não tem Web NFC.
+Contexto seguro
+A página está em contexto seguro.
+Leitura disponível
+Leitura simulada no modo de teste.
+Gravação disponível
+A gravação NDEF está disponível.
+Iniciar diagnóstico
+
+after-diag:
+Diagnóstico NFC
+A análise só lê a tag. Nada é gravado.
+NFC disponível
+Modo de teste neste navegador.
+NFC ligado
+A leitura está liberada.
+Permissão
+Modo de teste: o NFC deste navegador é simulado.
+Navegador / Web NFC
+Modo de teste: este navegador não tem Web NFC.
+Contexto seguro
+A página está em contexto seguro.
+Leitura disponível
+Leitura simulada no modo de teste.
+Gravação disponível
+A gravação NDEF está disponível.
+Iniciar diagnóstico

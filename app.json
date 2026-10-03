@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "Tags do Luiz",
+    "slug": "nfc-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nfcmanager",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F8FAFF",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nfcmanager.app",
+      "backgroundColor": "#F8FAFF",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "O NFC Manager usa o NFC para ler, gravar e apagar tags."
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": [
+          "NDEF"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.tagsluiz.nfcmanager",
+      "versionCode": 1,
+      "userInterfaceStyle": "automatic",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0F1E",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.NFC"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#F8FAFF"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F8FAFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#0A0F1E",
+            "image": "./assets/splash-icon.png"
+          }
+        }
+      ],
+      "expo-status-bar",
+      "expo-sqlite",
+      "react-native-nfc-manager",
+      "expo-web-browser",
+      "expo-sharing",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "81a1f769-7602-4403-b4e2-6d6776ba6339"
+      }
+    }
+  }
+}

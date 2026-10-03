@@ -1,0 +1,9 @@
+export const APP_VERSION = '1.0.0';
+export const APP_BUILD = '1';
+export const AUTH_REDIRECT = 'nfcmanager://auth/callback';
+export const PRIVACY_URL = 'https://example.com/nfc-manager/privacidade';
+export const TERMS_URL = 'https://example.com/nfc-manager/termos';
+export const SUPPORT_EMAIL = 'suporte@nfcmanager.app';
+export const DEFAULT_TAG_CAPACITY = 144;
+export const HISTORY_PAGE_SIZE = 20;
+export const SYNC_BATCH_SIZE = 50;
