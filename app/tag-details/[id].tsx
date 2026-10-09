@@ -12,7 +12,7 @@ import { CONTENT_TYPE_META } from '@/constants/nfcTypes';
 import { getOperationById } from '@/core/offline/database';
 import { getPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
-import { replace } from '@/lib/navigation';
+import { openNfcFlow } from '@/lib/nfcEntry';
 import { useNfcStore } from '@/stores/nfcStore';
 import type { ContentType } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeContext';
@@ -30,7 +30,7 @@ const KIND: Partial<Record<ContentType, string>> = {
   LOCATION: 'Local',
   LINK_APP: 'Aplicativo',
   EVENT: 'Evento',
-  CUSTOM: 'Personalizado',
+  CUSTOM: 'Cartão',
 };
 
 function formatPhone(value: string): string {
@@ -64,8 +64,16 @@ function fieldsOf(payload: WritePayload | null): { label: string; value: string 
   if (payload.ssid) {
     rows.push({ label: 'Rede', value: payload.ssid });
   }
-  if (payload.text) {
+  if (payload.text && payload.contentType !== 'CUSTOM') {
     rows.push({ label: 'Texto', value: payload.text });
+  }
+  if (payload.cardTitle) {
+    rows.push({ label: 'Título', value: payload.cardTitle });
+  }
+  for (const field of payload.cardFields ?? []) {
+    if (field.label && field.value) {
+      rows.push(field);
+    }
   }
   return rows;
 }
@@ -119,8 +127,12 @@ export default function TagDetailsScreen() {
   const href = linkOf(payload, raw);
 
   function edit() {
-    const body = encodeURIComponent(JSON.stringify(payload ?? { contentType }));
-    replace(`/write/configure?contentType=${contentType}&prefill=${body}`);
+    const body = JSON.stringify(payload ?? { contentType });
+    void openNfcFlow('write', { contentType, prefill: body }, 'replace');
+  }
+
+  function rewrite() {
+    void openNfcFlow('write', {}, 'replace');
   }
 
   return (
@@ -129,7 +141,7 @@ export default function TagDetailsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 28, gap: 14 }}>
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <TypeBadge type={contentType} size={52} />
+              <TypeBadge type={contentType} size={52} iconName={payload?.cardIcon} tint={payload?.cardColor} />
               <View>
                 <Text style={{ color: colors.textPrimary, fontWeight: '800', fontSize: fs(18) }}>{meta.name}</Text>
                 <Text style={{ color: colors.textSecondary }}>{KIND[contentType] ?? 'Conteúdo'}</Text>
@@ -167,6 +179,9 @@ export default function TagDetailsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <PrimaryButton label="Editar" variant="secondary" onPress={edit} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <PrimaryButton label="Regravar" onPress={rewrite} />
             </View>
           </View>
       </ScrollView>

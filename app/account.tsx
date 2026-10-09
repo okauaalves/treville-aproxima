@@ -13,7 +13,7 @@ export default function AccountScreen() {
       <AppHeader title="Conta" back />
       <View style={{ padding: 16 }}>
         <Text style={{ color: colors.textPrimary, fontSize: fs(18), fontWeight: '700' }}>{user?.email}</Text>
-        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Os dados da conta ficam neste aparelho quando o Supabase não está configurado.</Text>
+        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Os dados da conta ficam neste aparelho quando o Supabase não está configurado. Com a conta online, o e-mail e o nome ficam no provedor de autenticação.</Text>
       </View>
     </Screen>
   );

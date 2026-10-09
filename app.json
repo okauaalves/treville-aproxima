@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Tags do Luiz",
-    "slug": "nfc-manager",
+    "name": "Tréville",
+    "slug": "treville-nfc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "nfcmanager",
+    "scheme": "treville",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#F8FAFF",
     "ios": {
@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.nfcmanager.app",
       "backgroundColor": "#F8FAFF",
       "infoPlist": {
-        "NFCReaderUsageDescription": "O NFC Manager usa o NFC para ler, gravar e apagar tags."
+        "NFCReaderUsageDescription": "O Tréville usa o NFC para ler, gravar e apagar tags."
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": [
@@ -47,12 +47,21 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F8FAFF",
-          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/brand/treville-logo.png",
           "imageWidth": 200,
           "dark": {
             "backgroundColor": "#0A0F1E",
-            "image": "./assets/splash-icon.png"
+            "image": "./assets/brand/treville-logo.png"
+          },
+          "android": {
+            "backgroundColor": "#F3F3F3",
+            "image": "./assets/brand/treville-logo.png",
+            "imageWidth": 200,
+            "dark": {
+              "backgroundColor": "#F3F3F3",
+              "image": "./assets/brand/treville-logo.png"
+            }
           }
         }
       ],
@@ -61,7 +70,8 @@
       "react-native-nfc-manager",
       "expo-web-browser",
       "expo-sharing",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

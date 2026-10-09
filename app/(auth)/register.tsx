@@ -8,11 +8,11 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Input } from '@/components/ui/Input';
 import { inter } from '@/theme/fonts';
 import { signUpAccount } from '@/lib/authActions';
+import { validateRegister } from '@/lib/authForm';
 import { replace } from '@/lib/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useTheme } from '@/theme/ThemeContext';
-import { isValidEmail } from '@/utils/validators';
 
 export default function RegisterScreen() {
   const { colors, fs } = useTheme();
@@ -21,23 +21,29 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function submit() {
-    if (!name.trim() || !isValidEmail(email) || password.length < 6 || password !== confirm) {
-      useToastStore.getState().show(password !== confirm ? 'As senhas não coincidem.' : 'Preencha os campos corretamente.', 'error');
+    const invalid = validateRegister(name, email, password, confirm);
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setLoading(true);
+    setError('');
     try {
       const result = await signUpAccount(name, email, password);
       if (result.needsConfirmation || !result.user) {
-        useToastStore.getState().show('Verifique seu e-mail para confirmar a conta.', 'info');
+        useToastStore.getState().show('Enviamos um link de confirmação para seu e-mail', 'info');
+        replace('/(auth)/login');
         return;
       }
       useAuthStore.getState().setUser(result.user);
       replace('/(tabs)');
-    } catch (error) {
-      useToastStore.getState().show(error instanceof Error ? error.message : 'Não foi possível criar a conta.', 'error');
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Não foi possível criar a conta.';
+      setError(message);
+      useToastStore.getState().show(message, 'error');
     } finally {
       setLoading(false);
     }
@@ -53,6 +59,7 @@ export default function RegisterScreen() {
             <Input label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
             <Input label="Senha" value={password} onChangeText={setPassword} secureTextEntry />
             <Input label="Confirmar senha" value={confirm} onChangeText={setConfirm} secureTextEntry error={confirm && confirm !== password ? 'As senhas não coincidem.' : undefined} />
+            {error ? <Text accessibilityRole="alert" style={[{ color: colors.error, marginBottom: 12 }, inter('medium')]}>{error}</Text> : null}
             <PrimaryButton label="Criar conta" fullWidth loading={loading} onPress={() => void submit()} />
           </Card>
           <Pressable accessibilityRole="button" accessibilityLabel="Entrar" onPress={() => (router.canGoBack() ? router.back() : replace('/(auth)/login'))}>

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Share, Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, ShieldCheck } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,10 +8,15 @@ import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Toggle } from '@/components/ui/Toggle';
-import { signOutUser } from '@/lib/authActions';
+import { APP_TAGLINE } from '@/constants/config';
 import { getOperations } from '@/core/offline/database';
 import { push, replace } from '@/lib/navigation';
+import { isAdminUser } from '@/lib/adminAccess';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { ThemePreference } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeContext';
@@ -46,6 +51,8 @@ export default function SettingsScreen() {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [privacy, setPrivacy] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const user = useAuthStore((state) => state.user);
   const themeLabel = THEMES.find((item) => item.value === preference)?.label ?? 'Claro';
   const modeLabel = MODES.find((item) => item.value === readMode)?.label ?? 'Padrão';
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -54,6 +61,11 @@ export default function SettingsScreen() {
     <Screen>
       <AppHeader title="Configurações" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 28) }}>
+        <Section title="Conta">
+          <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
+          <Row label="Sair" value="" first={false} onPress={() => setConfirmExit(true)} />
+          {isAdminUser(user) ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
+        </Section>
         <Section title="Aparência">
           <Row label="Tema" value={themeLabel} onPress={() => setThemeOpen(true)} />
           <Row label="Idioma" value={language === 'pt-BR' ? 'Português (Brasil)' : language} onPress={() => setLanguageOpen(true)} first={false} />
@@ -64,11 +76,9 @@ export default function SettingsScreen() {
           <ToggleRow label="Vibração" value={vibration} onChange={(value) => void useSettingsStore.getState().setVibrationEnabled(value)} />
         </Section>
         <Section title="Sobre">
-          <Row label="Versão" value={version} />
-        </Section>
-        <Section title="Conta">
-          <Row label="Conta" value="" onPress={() => push('/account')} />
-          <Row label="Sair" value="" onPress={() => { void signOutUser().then(() => replace('/(auth)/login')); }} first={false} />
+          <Text style={{ color: colors.textSecondary, paddingHorizontal: 14, paddingTop: 12 }}>{APP_TAGLINE}</Text>
+          <Row label="Versão" value={version} first={false} />
+          <Row label="Termos de uso" value="" onPress={() => push('/terms')} first={false} />
         </Section>
         <Section title="Dados">
           <Row label="Retenção do histórico" value={`${retention} dias`} onPress={() => void useSettingsStore.getState().setHistoryRetentionDays(retention === 30 ? 90 : retention === 90 ? 365 : 30)} />
@@ -89,6 +99,18 @@ export default function SettingsScreen() {
           <Row label="Tamanho do texto" value={textScale} onPress={() => void useSettingsStore.getState().setTextScale(SCALES[(SCALES.indexOf(textScale) + 1) % SCALES.length] ?? 'A')} first={false} />
         </Section>
       </ScrollView>
+      <Modal visible={confirmExit} title="Sair da conta" onClose={() => setConfirmExit(false)}>
+        <Text style={{ color: colors.textSecondary, marginBottom: 12 }}>Encerrar a sessão neste aparelho?</Text>
+        <PrimaryButton
+          label="Sair"
+          tone="danger"
+          fullWidth
+          onPress={() => {
+            setConfirmExit(false);
+            void useAuthStore.getState().signOut().then(() => replace('/(auth)/login'));
+          }}
+        />
+      </Modal>
       <BottomSheet visible={themeOpen} onClose={() => setThemeOpen(false)} accessibilityLabel="Fechar tema">
         <Text style={{ color: colors.textPrimary, fontWeight: '800', fontSize: fs(18), marginBottom: 8 }}>Tema</Text>
         {THEMES.map((item) => (
@@ -125,10 +147,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row({ label, value, onPress, first = true }: { label: string; value: string; onPress?: () => void; first?: boolean }) {
+function Row({ label, value, onPress, first = true, icon }: { label: string; value: string; onPress?: () => void; first?: boolean; icon?: ReactNode }) {
   const { colors } = useTheme();
   const body = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border, gap: 8 }}>
+      {icon}
       <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600' }}>{label}</Text>
       {value ? <Text style={{ color: colors.textSecondary, marginRight: 6 }}>{value}</Text> : null}
       {onPress ? <ChevronRight color={colors.textMuted} size={16} /> : null}

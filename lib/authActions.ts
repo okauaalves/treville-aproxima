@@ -9,6 +9,7 @@ import {
   signOutRemote,
   signUpWithEmail,
   translateAuthError,
+  updatePassword,
 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import type { AppUser, LocalAccount } from '@/types/auth';
@@ -37,7 +38,7 @@ export async function signInAccount(email: string, password: string): Promise<Ap
   if (isSupabaseConfigured) {
     try {
       const user = await signInWithEmail(email.trim(), password);
-      return { id: user.id, email: user.email, user_metadata: user.user_metadata };
+      return { id: user.id, email: user.email, user_metadata: user.user_metadata, app_metadata: user.app_metadata };
     } catch (error) {
       throw new Error(translateAuthError(error));
     }
@@ -59,7 +60,7 @@ export async function signUpAccount(name: string, email: string, password: strin
         return { user: null, needsConfirmation: true };
       }
       return {
-        user: { id: result.user.id, email: result.user.email, user_metadata: result.user.user_metadata },
+        user: { id: result.user.id, email: result.user.email, user_metadata: result.user.user_metadata, app_metadata: result.user.app_metadata },
         needsConfirmation: false,
       };
     } catch (error) {
@@ -92,7 +93,7 @@ export async function signInGoogleAccount(): Promise<AppUser | null> {
     if (!session?.user) {
       return null;
     }
-    return { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata };
+    return { id: session.user.id, email: session.user.email, user_metadata: session.user.user_metadata, app_metadata: session.user.app_metadata };
   } catch (error) {
     throw new Error(translateAuthError(error));
   }
@@ -104,6 +105,17 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }
   try {
     await resetPassword(email.trim());
+  } catch (error) {
+    throw new Error(translateAuthError(error));
+  }
+}
+
+export async function setNewPassword(password: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    throw new Error('A troca de senha exige uma conta online.');
+  }
+  try {
+    await updatePassword(password);
   } catch (error) {
     throw new Error(translateAuthError(error));
   }

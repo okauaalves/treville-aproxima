@@ -5,7 +5,8 @@ import { createClient, type Session, type SupabaseClient, type User } from '@sup
 import { AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 
-import { AUTH_REDIRECT } from '@/constants/config';
+import { parseAuthCallback } from '@/lib/authCallback';
+import { getAuthRedirect } from '@/lib/authRedirect';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -61,41 +62,28 @@ export function translateAuthError(error: unknown): string {
   if (message.includes('invalid login') || message.includes('invalid credentials')) {
     return 'E-mail ou senha inválidos.';
   }
-  if (message.includes('already registered') || message.includes('already exists')) {
+  if (message.includes('already registered') || message.includes('already exists') || message.includes('user already')) {
     return 'Este e-mail já está cadastrado.';
   }
-  if (message.includes('network') || message.includes('fetch')) {
+  if (message.includes('network') || message.includes('fetch') || message.includes('failed to fetch')) {
     return 'Sem conexão. Tente novamente.';
   }
-  if (message.includes('password')) {
-    return 'A senha não atende aos requisitos.';
+  if (message.includes('weak') || message.includes('at least') || message.includes('password')) {
+    return 'A senha é fraca. Use ao menos 6 caracteres.';
+  }
+  if (message.includes('email not confirmed')) {
+    return 'Verifique seu e-mail para confirmar a conta.';
   }
   return 'Não foi possível concluir. Tente novamente.';
-}
-
-function readParams(urlValue: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const query = urlValue.split('?')[1]?.split('#')[0] ?? '';
-  const hash = urlValue.split('#')[1] ?? '';
-  for (const part of [...query.split('&'), ...hash.split('&')]) {
-    if (!part) {
-      continue;
-    }
-    const [key, value = ''] = part.split('=');
-    if (key) {
-      out[decodeURIComponent(key)] = decodeURIComponent(value);
-    }
-  }
-  return out;
 }
 
 export async function createSessionFromUrl(urlValue: string): Promise<Session | null> {
   if (!supabase) {
     return null;
   }
-  const params = readParams(urlValue);
-  if (params.error_description) {
-    throw new Error(params.error_description);
+  const params = parseAuthCallback(urlValue);
+  if (params.error) {
+    throw new Error(params.error);
   }
   if (params.code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(params.code);
@@ -104,10 +92,10 @@ export async function createSessionFromUrl(urlValue: string): Promise<Session | 
     }
     return data.session;
   }
-  if (params.access_token && params.refresh_token) {
+  if (params.accessToken && params.refreshToken) {
     const { data, error } = await supabase.auth.setSession({
-      access_token: params.access_token,
-      refresh_token: params.refresh_token,
+      access_token: params.accessToken,
+      refresh_token: params.refreshToken,
     });
     if (error) {
       throw error;
@@ -152,23 +140,33 @@ export async function signInWithGoogle(): Promise<Session | null> {
   }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: AUTH_REDIRECT, skipBrowserRedirect: true },
+    options: { redirectTo: getAuthRedirect(), skipBrowserRedirect: true },
   });
   if (error) {
     throw error;
   }
-  const result = await WebBrowser.openAuthSessionAsync(data.url ?? '', AUTH_REDIRECT);
+  const result = await WebBrowser.openAuthSessionAsync(data.url ?? '', getAuthRedirect());
   if (result.type !== 'success') {
     return null;
   }
   return createSessionFromUrl(result.url);
 }
 
+export async function updatePassword(password: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('LOCAL');
+  }
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    throw error;
+  }
+}
+
 export async function resetPassword(email: string): Promise<void> {
   if (!supabase) {
     throw new Error('LOCAL');
   }
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: AUTH_REDIRECT });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirect() });
   if (error) {
     throw error;
   }

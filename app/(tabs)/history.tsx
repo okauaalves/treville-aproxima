@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { HistoryItem } from '@/components/ui/HistoryItem';
 import { Modal } from '@/components/ui/Modal';
-import { EmptyState, LoadingState } from '@/components/ui/states';
+import { EmptyState } from '@/components/ui/states';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { inter } from '@/theme/fonts';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect } from 'expo-router';
@@ -71,8 +72,15 @@ export default function HistoryScreen() {
               void useHistoryStore.getState().load(false);
             }
           }}
-          ListEmptyComponent={isLoading ? <LoadingState label="Carregando histórico" /> : <EmptyState title="Nenhuma leitura ou gravação ainda." message="As tags lidas e gravadas aparecem aqui." />}
-          renderItem={({ item }) => <HistoryRow item={item} onDelete={() => void remove(item.id)} />}
+          ListEmptyComponent={isLoading ? (
+            <View>
+              <Skeleton />
+              <Skeleton />
+              <Skeleton />
+              <Skeleton />
+            </View>
+          ) : <EmptyState title="Nenhuma leitura ou gravação ainda." message="As tags lidas e gravadas aparecem aqui." />}
+          renderItem={({ item, index }) => <HistoryRow item={item} index={index} onDelete={() => void remove(item.id)} />}
         />
         <Modal visible={confirmClear} title="Limpar histórico" onClose={() => setConfirmClear(false)}>
           <Text style={[{ color: colors.textSecondary, marginBottom: 12 }, inter('regular')]}>Apagar todo o histórico neste aparelho?</Text>
@@ -98,7 +106,7 @@ export default function HistoryScreen() {
   );
 }
 
-function HistoryRow({ item, onDelete }: { item: Operation; onDelete: () => void }) {
+function HistoryRow({ item, index, onDelete }: { item: Operation; index: number; onDelete: () => void }) {
   const { colors } = useTheme();
   return (
     <Swipeable renderRightActions={() => (
@@ -106,7 +114,7 @@ function HistoryRow({ item, onDelete }: { item: Operation; onDelete: () => void 
         <Text style={{ color: colors.error, fontWeight: '700' }}>Excluir</Text>
       </Pressable>
     )}>
-      <HistoryItem title={item.displayTitle || item.title} subtitle={`${item.tagType ?? 'NTAG213'} · ${formatWhen(item.createdAt)}`} type={item.contentType ?? item.payload?.contentType} onPress={() => push(`/tag-details/${item.id}`)} />
+      <HistoryItem index={index} title={item.displayTitle || item.title} subtitle={`${item.tagType ?? 'NTAG213'} · ${formatWhen(item.createdAt)}`} type={item.contentType ?? item.payload?.contentType} onPress={() => push(`/tag-details/${item.id}`)} />
     </Swipeable>
   );
 }

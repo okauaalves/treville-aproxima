@@ -4,9 +4,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react';
-import { View } from 'react-native';
+import { AccessibilityInfo, Platform, View } from 'react-native';
 import { DarkTheme, DefaultTheme, type Theme } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { useColorScheme, vars } from 'nativewind';
@@ -85,7 +86,11 @@ function buildCssVars(colors: ThemeColors) {
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const { colorScheme, setColorScheme } = useColorScheme();
   const storedTheme = useSettingsStore((state) => state.theme);
-  const reduceAnimations = useSettingsStore((state) => state.reduceAnimations);
+  const storedReduce = useSettingsStore((state) => state.reduceAnimations);
+  const [systemReduce, setSystemReduce] = useState(() =>
+    Platform.OS === 'web' && typeof window !== 'undefined' ? Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) : false,
+  );
+  const reduceAnimations = storedReduce || systemReduce;
   const textScale = useSettingsStore((state) => state.textScale);
   const preference = storedTheme;
   const scheme = resolveScheme(preference, colorScheme);
@@ -101,6 +106,13 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   );
 
   const cssVars = useMemo(() => buildCssVars(colors), [colors]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void AccessibilityInfo.isReduceMotionEnabled?.().then(setSystemReduce);
+    const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', setSystemReduce);
+    return () => subscription?.remove();
+  }, []);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);

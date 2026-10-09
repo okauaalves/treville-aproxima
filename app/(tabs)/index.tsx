@@ -4,17 +4,21 @@ import { Nfc, Settings, SmartphoneNfc, Wrench, ChevronRight } from 'lucide-react
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TrevilleLogo } from '@/components/brand/TrevilleLogo';
 import { Screen } from '@/components/layout/Screen';
+import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { NfcPulse } from '@/components/nfc/NfcPulse';
 import { Card } from '@/components/ui/Card';
 import { HistoryItem } from '@/components/ui/HistoryItem';
 import { IconButton } from '@/components/ui/IconButton';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { StatusCard } from '@/components/ui/StatusCard';
 import { getOperations } from '@/core/offline/database';
 import { useNfc } from '@/hooks/useNfc';
+import { openNfcFlow } from '@/lib/nfcEntry';
 import { push } from '@/lib/navigation';
 import { inter } from '@/theme/fonts';
-import { radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Operation } from '@/types/history';
 import { formatDayLabel } from '@/utils/formatters';
@@ -28,48 +32,52 @@ export default function HomeScreen() {
   const nfcRef = useRef(nfc);
   const { isNfcSupported, isNfcEnabled, simulationAvailable } = nfc;
   const [recent, setRecent] = useState<Operation[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       void nfcRef.current.checkNfcStatus();
-      void getOperations({ filter: 'all', limit: 3 }).then(setRecent).catch(() => setRecent([]));
+      void getOperations({ filter: 'all', limit: 3 })
+        .then(setRecent)
+        .catch(() => setRecent([]))
+        .finally(() => setLoadingRecent(false));
     }, []),
   );
 
-  const ready = simulationAvailable || (isNfcSupported && isNfcEnabled);
+  const ready = isNfcSupported && isNfcEnabled && !simulationAvailable;
   const status = ready
     ? 'Tudo pronto para começar.'
-    : isNfcSupported
-      ? 'O NFC está desligado.'
-      : 'NFC não disponível neste dispositivo/navegador.';
+    : simulationAvailable
+      ? 'NFC indisponível neste navegador.'
+      : isNfcSupported
+        ? 'O NFC está desligado.'
+        : 'NFC não disponível neste dispositivo.';
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 24 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <Text style={[{ flex: 1, fontSize: fs(28), color: colors.textPrimary }, inter('extrabold')]}>
-            Tags do <Text style={{ color: colors.primary }}>Luiz</Text>
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 }}>
+          <TrevilleLogo size={32} />
+          <Text style={[{ flex: 1, fontSize: fs(28), color: colors.primary }, inter('bold')]}>Tréville</Text>
           <IconButton accessibilityLabel="Ajustes" onPress={() => push('/(tabs)/settings')}>
             <Settings color={colors.textSecondary} size={22} />
           </IconButton>
         </View>
-        <StatusCard title="NFC" subtitle={status} />
-        <Card accessibilityLabel="Aproxime uma tag NFC aqui" onPress={() => push('/scan')} tone="accent" padding={28} style={{ alignItems: 'center', marginTop: 14, marginBottom: 14 }}>
+        <ExpoGoBanner />
+        <StatusCard title="NFC" subtitle={status} blur />
+        <Card accessibilityLabel="Aproxime uma tag NFC aqui" onPress={() => void openNfcFlow('read')} tone="accent" padding={28} blur shimmer style={{ alignItems: 'center', marginTop: 14, marginBottom: 14 }}>
           <NfcPulse size={156} />
           <Text style={[{ color: colors.textPrimary, fontSize: fs(16), textAlign: 'center', marginTop: 4, lineHeight: fs(22) }, inter('extrabold')]}>
             Aproxime uma tag{'\n'}NFC aqui
           </Text>
         </Card>
         <View style={{ flexDirection: stacked ? 'column' : 'row', gap: 12, marginBottom: 12 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Ler tag" onPress={() => push('/scan')} style={{ flex: 1, minHeight: 72, borderRadius: radius.lg, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <Nfc color="#fff" size={22} />
-            <Text style={[{ color: '#fff', fontSize: fs(16), lineHeight: fs(20) }, inter('bold')]}>Ler tag</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Gravar tag" onPress={() => push('/write/configure')} style={{ flex: 1, minHeight: 72, borderRadius: radius.lg, backgroundColor: colors.success, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <SmartphoneNfc color="#fff" size={22} />
-            <Text style={[{ color: '#fff', fontSize: fs(16), lineHeight: fs(20) }, inter('bold')]}>Gravar tag</Text>
-          </Pressable>
+          <View style={{ flex: 1 }}>
+            <PrimaryButton label="Ler tag" icon={<Nfc color="#fff" size={22} />} fullWidth onPress={() => void openNfcFlow('read')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <PrimaryButton label="Gravar tag" tone="success" icon={<SmartphoneNfc color="#fff" size={22} />} fullWidth onPress={() => void openNfcFlow('write')} />
+          </View>
         </View>
         <Card accessibilityLabel="Diagnóstico NFC" onPress={() => push('/diagnostics')} padding={14} style={{ marginBottom: 22 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -87,10 +95,12 @@ export default function HomeScreen() {
             <Text style={[{ color: colors.primary }, inter('bold')]}>Ver tudo</Text>
           </Pressable>
         </View>
-        {recent.length === 0 ? <Text style={[{ color: colors.textSecondary }, inter('regular')]}>Nenhuma leitura ou gravação ainda.</Text> : null}
-        {recent.map((item) => (
+        {loadingRecent ? <Skeleton height={72} /> : null}
+        {!loadingRecent && recent.length === 0 ? <Text style={[{ color: colors.textSecondary }, inter('regular')]}>Nenhuma leitura ou gravação ainda.</Text> : null}
+        {recent.map((item, index) => (
           <HistoryItem
             key={item.id}
+            index={index}
             type={item.contentType ?? item.payload?.contentType}
             title={item.displayTitle || item.title}
             subtitle={`${item.tagType ?? 'NTAG213'} · ${formatDayLabel(item.createdAt)}`}

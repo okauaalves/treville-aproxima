@@ -3,12 +3,15 @@ import { ScrollView, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
 import { StatusCard } from '@/components/ui/StatusCard';
 import type { DiagnosticReportData } from '@/core/nfc/DiagnosticEngine';
 import { deviceChecks, type DeviceCheck } from '@/core/nfc/deviceStatus';
+import { assessNfc } from '@/core/nfc/readiness';
 import { useNfc } from '@/hooks/useNfc';
+import { replace } from '@/lib/navigation';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
@@ -32,6 +35,11 @@ export default function DiagnosticsScreen() {
   }, []);
 
   async function start() {
+    const assessment = await assessNfc();
+    if (!assessment.ready) {
+      replace(`/nfc-unavailable?intent=read&reason=${assessment.reason ?? 'unsupported'}`);
+      return;
+    }
     setWaiting(true);
     setReport(null);
     await nfc.registerTagEvent(async (tag) => {
@@ -46,12 +54,13 @@ export default function DiagnosticsScreen() {
     <Screen>
       <AppHeader title="Diagnóstico NFC" back />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <ExpoGoBanner />
         <Text style={[{ color: colors.textSecondary, fontSize: fs(14) }, inter('regular')]}>A análise só lê a tag. Nada é gravado.</Text>
         {checks.map((item) => (
           <StatusCard key={item.id} title={item.label} subtitle={item.ok ? item.reason : `${item.reason} ${item.solution}`} />
         ))}
         <PrimaryButton label={waiting ? 'Aguardando tag...' : 'Iniciar diagnóstico'} onPress={() => void start()} disabled={waiting} />
-        {nfc.simulationAvailable && nfc.simulateTag && waiting ? <PrimaryButton label="Modo de teste" variant="secondary" onPress={() => nfc.simulateTag?.('default')} /> : null}
+        {nfc.simulationAvailable && nfc.simulateTag && waiting ? <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" onPress={() => nfc.simulateTag?.('default')} /> : null}
         {report ? (
           <Card>
             <Text style={{ color: report.canBeUsed ? colors.success : colors.error, fontWeight: '800', marginBottom: 8 }}>{report.canBeUsed ? 'Tag utilizável' : 'Tag com restrições'}</Text>

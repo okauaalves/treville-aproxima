@@ -29,12 +29,12 @@ export interface ThemeColors {
 export const palette = {
   light: {
     background: '#F8FAFF',
-    primary: '#2563EB',
+    primary: '#3B82F6',
     success: '#16A34A',
   },
   dark: {
     background: '#0A0F1E',
-    primary: '#3B6FFF',
+    primary: '#3B82F6',
     success: '#22C55E',
   },
 } as const;
@@ -44,7 +44,7 @@ export const lightColors: ThemeColors = {
   surface: '#FFFFFF',
   surfaceElevated: '#EEF2FF',
   primary: palette.light.primary,
-  primaryPressed: '#1D4ED8',
+  primaryPressed: '#2563EB',
   onPrimary: '#FFFFFF',
   success: palette.light.success,
   warning: '#D97706',
@@ -68,7 +68,7 @@ export const darkColors: ThemeColors = {
   surface: '#12182B',
   surfaceElevated: '#1A2238',
   primary: palette.dark.primary,
-  primaryPressed: '#2F5AE0',
+  primaryPressed: '#2563EB',
   onPrimary: '#FFFFFF',
   success: palette.dark.success,
   warning: '#F59E0B',
@@ -110,7 +110,7 @@ export type ContentType =
   | 'CUSTOM';
 
 export const ContentTypeColors: Record<ContentType, { dark: string; light: string }> = {
-  URL: { dark: '#3B6FFF', light: '#2563EB' },
+  URL: { dark: '#3B82F6', light: '#3B82F6' },
   WHATSAPP: { dark: '#22C55E', light: '#16A34A' },
   PHONE: { dark: '#38BDF8', light: '#0284C7' },
   EMAIL: { dark: '#F59E0B', light: '#D97706' },

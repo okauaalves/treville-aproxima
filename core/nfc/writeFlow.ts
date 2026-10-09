@@ -34,6 +34,7 @@ function payloadText(payload: WritePayload): { title: string; value: string } {
     payload.email ??
     payload.fullName ??
     payload.ssid ??
+    payload.cardTitle ??
     payload.text ??
     payload.eventTitle ??
     payload.address ??
@@ -148,6 +149,8 @@ export async function writeFlow(
       await saveTemplate({
         name: options.templateName.trim(),
         type: payload.contentType,
+        icon: payload.cardIcon ?? null,
+        color: payload.cardColor ?? null,
         configuration: payload,
       });
     }

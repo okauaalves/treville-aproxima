@@ -5,10 +5,10 @@ import { Card } from '@/components/ui/Card';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
-export function StatusCard({ title, subtitle }: { title: string; subtitle: string }) {
+export function StatusCard({ title, subtitle, blur = false }: { title: string; subtitle: string; blur?: boolean }) {
   const { colors, fs, isDark } = useTheme();
   return (
-    <Card padding={14}>
+    <Card padding={14} blur={blur}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? colors.surfaceElevated : '#E8EEFF', alignItems: 'center', justifyContent: 'center' }}>
           <Nfc color={colors.primary} size={22} strokeWidth={2} />

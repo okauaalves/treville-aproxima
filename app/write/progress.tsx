@@ -93,7 +93,7 @@ export default function ProgressScreen() {
             ) : null}
           </Card>
         ) : null}
-        {simulationAvailable && simulateTag && isScanning && !done ? <PrimaryButton label="Modo de teste" variant="secondary" onPress={() => simulateTag('default')} /> : null}
+        {simulationAvailable && simulateTag && isScanning && !done ? <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" onPress={() => simulateTag('default')} /> : null}
         {done ? <PrimaryButton label="OK" fullWidth onPress={() => replace('/(tabs)/history')} /> : null}
         {failed ? <PrimaryButton label="Tentar de novo" variant="secondary" onPress={() => replace('/write/configure')} /> : null}
       </View>

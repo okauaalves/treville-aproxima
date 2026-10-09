@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { TemplateCard } from '@/components/ui/TemplateCard';
 import { useFocusEffect } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { SegmentedControl } from '@/components/ui/Toggle';
 import { ADVANCED_TEMPLATES, BASIC_TEMPLATES } from '@/constants/nfcTypes';
 import { getTemplates } from '@/core/offline/database';
 import { push } from '@/lib/navigation';
 import type { ContentType } from '@/theme/colors';
+import { useTheme } from '@/theme/ThemeContext';
 import type { NfcTemplate } from '@/types/template';
 
 const BASIC: { type: ContentType; name: string; description: string }[] = [
@@ -24,10 +26,12 @@ const BASIC: { type: ContentType; name: string; description: string }[] = [
 export default function TemplatesScreen() {
   const [tab, setTab] = useState<'basic' | 'advanced'>('basic');
   const [mine, setMine] = useState<NfcTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { colors } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
-      void getTemplates().then(setMine).catch(() => setMine([]));
+      void getTemplates().then(setMine).catch(() => setMine([])).finally(() => setLoading(false));
     }, []),
   );
 
@@ -49,16 +53,28 @@ export default function TemplatesScreen() {
           ]}
         />
         <View style={{ marginTop: 14 }}>
-          {tab === 'basic'
-            ? BASIC.map((item) => (
-                <TemplateCard key={item.type} type={item.type} title={item.name} subtitle={item.description} onPress={() => push(`/template/builtin-${item.type}`)} />
+          {loading ? (
+            <>
+              <Skeleton />
+              <Skeleton />
+              <Skeleton />
+            </>
+          ) : null}
+          {!loading && mine.length > 0 ? <Text style={{ color: colors.textSecondary, fontWeight: '800', marginBottom: 8 }}>Meus templates</Text> : null}
+          {!loading
+            ? mine.map((item, index) => (
+                <TemplateCard key={item.id} index={index} type={item.type} title={item.name} subtitle="Meu template" iconName={item.icon} tint={item.color} onPress={() => push(`/template/${item.id}`)} />
               ))
-            : advanced.map((item) => (
-                <TemplateCard key={`${item.type}-${item.name}`} type={item.type} title={item.name} subtitle={item.description} onPress={() => push(`/template/builtin-${item.type}`)} />
-              ))}
-          {tab === 'advanced'
-            ? mine.map((item) => (
-                <TemplateCard key={item.id} type={item.type} title={item.name} subtitle="Meu template" onPress={() => push(`/template/${item.id}`)} />
+            : null}
+          {!loading && mine.length > 0 ? <Text style={{ color: colors.textSecondary, fontWeight: '800', marginTop: 8, marginBottom: 8 }}>{tab === 'basic' ? 'Básicos' : 'Avançados'}</Text> : null}
+          {!loading && tab === 'basic'
+            ? BASIC.map((item, index) => (
+                <TemplateCard key={item.type} index={index} type={item.type} title={item.name} subtitle={item.description} onPress={() => push(`/template/builtin-${item.type}`)} />
+              ))
+            : null}
+          {!loading && tab === 'advanced'
+            ? advanced.map((item, index) => (
+                <TemplateCard key={`${item.type}-${item.name}`} index={index} type={item.type} title={item.name} subtitle={item.description} onPress={() => push(`/template/builtin-${item.type}`)} />
               ))
             : null}
         </View>

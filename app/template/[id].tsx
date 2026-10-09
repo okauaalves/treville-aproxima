@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { TypeBadge } from '@/components/ui/TypeBadge';
 import { CONTENT_TYPE_META, isContentType } from '@/constants/nfcTypes';
 import { deleteTemplate, getTemplates, saveTemplate } from '@/core/offline/database';
+import { openNfcFlow } from '@/lib/nfcEntry';
 import { replace } from '@/lib/navigation';
 import { inter } from '@/theme/fonts';
 import type { ContentType } from '@/theme/colors';
@@ -39,8 +40,8 @@ export default function TemplateDetailScreen() {
     if (!type) {
       return;
     }
-    const prefill = item ? `&prefill=${encodeURIComponent(JSON.stringify(item.configuration))}` : '';
-    replace(`/write/configure?contentType=${type}${prefill}`);
+    const prefill = item ? JSON.stringify(item.configuration) : '';
+    void openNfcFlow('write', { contentType: type, prefill }, 'replace');
   }
 
   async function duplicate() {
@@ -67,7 +68,7 @@ export default function TemplateDetailScreen() {
       <AppHeader title={title} back />
       <View style={{ padding: 16, gap: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          {type ? <TypeBadge type={type} /> : null}
+        {type ? <TypeBadge type={type} iconName={item?.icon} tint={item?.color} /> : null}
           <View style={{ flex: 1 }}>
             <Text style={[{ color: colors.textPrimary, fontSize: fs(18) }, inter('bold')]}>{title}</Text>
             <Text style={[{ color: colors.textSecondary }, inter('regular')]}>{description}</Text>

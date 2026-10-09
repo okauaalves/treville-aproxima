@@ -1,7 +1,8 @@
 import { NfcError, toNfcError } from '@/core/nfc/errors';
-import { NdefStatus, NfcEvents, NfcTech, nativeAvailable, nativeNfc, type TagEvent } from '@/core/nfc/nfcNative';
+import { NdefStatus, NfcEvents, nativeAvailable, nativeNfc, type TagEvent } from '@/core/nfc/nfcNative';
 import { simulatedNfc } from '@/core/nfc/simulatedAdapter';
 import { isWebNfcSupported, webNfc, webNfcUnavailableReason } from '@/core/nfc/webNfc';
+import { isExpoGo } from '@/core/platform/expoGo';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { NfcSimulationKind } from '@/types/nfc';
 
@@ -14,7 +15,9 @@ export class NfcManagerService {
   private readonly mode: 'native' | 'web' | 'simulated' | 'unavailable';
 
   private constructor() {
-    if (nativeAvailable && nativeNfc) {
+    if (isExpoGo()) {
+      this.mode = __DEV__ ? 'simulated' : 'unavailable';
+    } else if (nativeAvailable && nativeNfc) {
       this.mode = 'native';
     } else if (isWebNfcSupported()) {
       this.mode = 'web';
@@ -105,7 +108,7 @@ export class NfcManagerService {
     return safe * 1000;
   }
 
-  async requestTechnology(techs: NfcTech[], options?: { alertMessage?: string }): Promise<void> {
+  async requestTechnology(techs: string[], options?: { alertMessage?: string }): Promise<void> {
     if (this.sessionOpen) {
       return;
     }
@@ -213,8 +216,10 @@ export class NfcManagerService {
     if (!nativeNfc) {
       throw new NfcError('NFC_NOT_SUPPORTED');
     }
-    const onDiscover = (event: TagEvent) => {
-      onTag(event);
+    const onDiscover = (event?: unknown) => {
+      if (event) {
+        onTag(event as TagEvent);
+      }
     };
     const onClosed = (event?: unknown) => {
       if (event) {
@@ -222,7 +227,7 @@ export class NfcManagerService {
       }
     };
     nativeNfc.setEventListener(NfcEvents.DiscoverTag, onDiscover);
-    nativeNfc.setEventListener(NfcEvents.SessionClosed, onClosed as (error?: Error) => void);
+    nativeNfc.setEventListener(NfcEvents.SessionClosed, onClosed);
     await nativeNfc.registerTagEvent({ invalidateAfterFirstRead: true, isReaderModeEnabled: true });
   }
 

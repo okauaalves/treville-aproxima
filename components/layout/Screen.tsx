@@ -1,10 +1,24 @@
-import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import type { ReactNode, RefObject } from 'react';
+import { useRef } from 'react';
+import { Platform, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
+import { AndroidBlurTarget, GlassTargetContext } from '@/components/ui/GlassSurface';
+import { screenEntering } from '@/theme/enter';
 import { useTheme } from '@/theme/ThemeContext';
 
-/** Fundo sólido do tema. Sem gradiente e sem blur, no claro e no escuro. */
 export function Screen({ children }: { children?: ReactNode }) {
-  const { colors } = useTheme();
-  return <View style={{ flex: 1, backgroundColor: colors.background }}>{children}</View>;
+  const { colors, reduceAnimations } = useTheme();
+  const targetRef = useRef<View>(null);
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <GlassTargetContext.Provider value={Platform.OS === 'android' ? (targetRef as RefObject<View | null>) : null}>
+        <AndroidBlurTarget targetRef={targetRef as RefObject<View | null>}>
+          <Animated.View entering={screenEntering(reduceAnimations)} style={{ flex: 1 }}>
+            {children}
+          </Animated.View>
+        </AndroidBlurTarget>
+      </GlassTargetContext.Provider>
+    </View>
+  );
 }

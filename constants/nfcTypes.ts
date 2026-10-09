@@ -49,7 +49,7 @@ export const CONTENT_TYPE_META: Record<
   TEXT: { name: 'Texto', description: 'Mensagem de texto', colors: ContentTypeColors.TEXT, icon: ContentTypeIcons.TEXT },
   LINK_APP: { name: 'Link app', description: 'Abrir aplicativo', colors: ContentTypeColors.LINK_APP, icon: ContentTypeIcons.LINK_APP },
   EVENT: { name: 'Evento', description: 'Compromisso', colors: ContentTypeColors.EVENT, icon: ContentTypeIcons.EVENT },
-  CUSTOM: { name: 'Personalizado', description: 'Conteúdo livre', colors: ContentTypeColors.CUSTOM, icon: ContentTypeIcons.CUSTOM },
+  CUSTOM: { name: 'Cartão personalizado', description: 'Ícone, cor e campos livres', colors: ContentTypeColors.CUSTOM, icon: 'IdCard' },
 };
 
 export function isContentType(value: string): value is ContentType {

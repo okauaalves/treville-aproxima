@@ -1,46 +1,77 @@
-import { useState } from 'react';
-import { Text, View } from 'react-native';
-import { LayoutGrid, Nfc, SmartphoneNfc } from 'lucide-react-native';
+import { ScrollView, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Download, Hand, Nfc, ShieldAlert, Smartphone } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 
 import { Screen } from '@/components/layout/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { setSetting } from '@/core/offline/database';
+import { ONBOARDING_KEY } from '@/lib/bootRoute';
 import { replace } from '@/lib/navigation';
 import { useAuthStore } from '@/stores/authStore';
+import { useBootStore } from '@/stores/bootStore';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
-const STEPS = [
-  { title: 'Leia tags NFC', text: 'Aproxime o celular e veja o que a tag contém.', icon: Nfc },
-  { title: 'Grave conteúdos', text: 'WhatsApp, cartão, Wi-Fi, link e outros formatos.', icon: SmartphoneNfc },
-  { title: 'Gerencie seus templates e histórico', text: 'Tudo fica salvo neste aparelho.', icon: LayoutGrid },
+const STEPS: { title: string; text: string; icon: LucideIcon }[] = [
+  {
+    title: 'Como instalar este app',
+    text: 'Se você recebeu um arquivo APK, abra-o e confirme a instalação. Na App Store ou na Play Store, o processo é o da loja.',
+    icon: Download,
+  },
+  {
+    title: 'Ative o NFC nas configurações do seu celular',
+    text: 'Em Ajustes, procure NFC e deixe ligado. Sem isso o Tréville não lê nem grava tags.',
+    icon: Nfc,
+  },
+  {
+    title: 'Permita instalar apps de fontes desconhecidas',
+    text: 'Isso só é necessário para o APK fora da Play Store. Depois da instalação você pode desativar essa permissão.',
+    icon: Smartphone,
+  },
+  {
+    title: 'Aproxime tags NFC com cuidado',
+    text: 'Encoste no ponto do NFC do celular e mantenha parado até o app confirmar. Não dobre nem molhe a tag.',
+    icon: Hand,
+  },
+  {
+    title: 'Não grave tags de outras pessoas sem permissão',
+    text: 'Não use o NFC para fraude, phishing ou para apagar conteúdo que não é seu. Uma trava permanente não tem volta.',
+    icon: ShieldAlert,
+  },
 ];
 
 export default function OnboardingScreen() {
   const { colors, fs } = useTheme();
-  const [index, setIndex] = useState(0);
-  const step = STEPS[index] ?? STEPS[0];
-  const Icon = step.icon;
-  const last = index === STEPS.length - 1;
 
   async function finish() {
-    await setSetting('onboardingSeen', 'true');
-    replace(useAuthStore.getState().user ? '/(tabs)' : '/(auth)/login');
+    await AsyncStorage.setItem(ONBOARDING_KEY, '1');
+    useBootStore.getState().setOnboardingSeen(true);
+    const user = useAuthStore.getState().user;
+    replace(user ? '/(tabs)' : '/(auth)/login');
   }
 
   return (
     <Screen>
-      <View style={{ flex: 1, padding: 24, justifyContent: 'center', gap: 16 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F4F8FF', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon color={colors.primary} size={32} />
-        </View>
-        <Text style={[{ color: colors.textPrimary, fontSize: fs(28) }, inter('extrabold')]}>{step.title}</Text>
-        <Text style={[{ color: colors.textSecondary, fontSize: fs(16) }, inter('regular')]}>{step.text}</Text>
-        <Text style={[{ color: colors.textMuted }, inter('medium')]}>{index + 1} de {STEPS.length}</Text>
-      </View>
-      <View style={{ padding: 24, gap: 8 }}>
-        <PrimaryButton label={last ? 'Começar' : 'Continuar'} onPress={() => (last ? void finish() : setIndex((value) => value + 1))} />
-        {last ? null : <PrimaryButton label="Pular" variant="secondary" onPress={() => void finish()} />}
+      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 12, gap: 18 }}>
+        <Text style={[{ color: colors.textPrimary, fontSize: fs(28) }, inter('extrabold')]}>Antes de começar</Text>
+        <Text style={[{ color: colors.textSecondary, fontSize: fs(15) }, inter('regular')]}>NFC Manager by Tréville</Text>
+        {STEPS.map((step) => {
+          const Icon = step.icon;
+          return (
+            <View key={step.title} style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon color={colors.primary} size={22} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[{ color: colors.textPrimary, fontSize: fs(16) }, inter('bold')]}>{step.title}</Text>
+                <Text style={[{ color: colors.textSecondary, fontSize: fs(14) }, inter('regular')]}>{step.text}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+      <View style={{ padding: 24 }}>
+        <PrimaryButton label="Entendi, continuar" fullWidth onPress={() => void finish()} />
       </View>
     </Screen>
   );

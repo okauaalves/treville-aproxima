@@ -1,20 +1,23 @@
 import { Platform } from 'react-native';
 
 import { isWebNfcSupported } from '@/core/nfc/webNfc';
+import { isExpoGo } from '@/core/platform/expoGo';
 
-const webNfc = Platform.OS === 'web' && (isWebNfcSupported() || __DEV__);
+const native = !isExpoGo() && (Platform.OS === 'ios' || Platform.OS === 'android');
+const webNfc = Platform.OS === 'web' && isWebNfcSupported();
 
 export const platformCapabilities = {
-  canWriteNdef: Platform.OS === 'ios' || Platform.OS === 'android' || webNfc,
-  canReadNdef: Platform.OS === 'ios' || Platform.OS === 'android' || webNfc,
-  canFormatTag: Platform.OS === 'android',
-  canLockTag: Platform.OS === 'android',
-  canPasswordProtect: Platform.OS === 'android',
-  canReadRawCommands: Platform.OS === 'android',
+  canWriteNdef: native || webNfc,
+  canReadNdef: native || webNfc,
+  canFormatTag: Platform.OS === 'android' && !isExpoGo(),
+  canLockTag: Platform.OS === 'android' && !isExpoGo(),
+  canPasswordProtect: Platform.OS === 'android' && !isExpoGo(),
+  canReadRawCommands: Platform.OS === 'android' && !isExpoGo(),
   canScanBackground: false,
-  canReadMifareClassic: Platform.OS === 'android',
-  canReadIsoDep: Platform.OS === 'android',
+  canReadMifareClassic: Platform.OS === 'android' && !isExpoGo(),
+  canReadIsoDep: Platform.OS === 'android' && !isExpoGo(),
   requiresUserGesture: Platform.OS === 'ios',
+  isExpoGo: isExpoGo(),
 };
 
 export function getUnavailableMessage(feature: string): string {

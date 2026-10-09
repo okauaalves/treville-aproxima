@@ -2,6 +2,7 @@ import type { NdefRecord } from 'react-native-nfc-manager';
 
 import type { ContentType } from '@/theme/colors';
 
+import { buildCustomCardBody, isCustomCardVCard, parseCustomCard } from '@/core/nfc/customCard';
 import { Ndef } from '@/core/nfc/nfcNative';
 import type { NfcPayload, ParsedRecord, WifiSecurity } from '@/types/nfc';
 
@@ -100,6 +101,8 @@ export class NdefEngine {
         return [this.buildUrlRecord(payload.appUri ?? '')];
       case 'EVENT':
         return [this.buildTextRecord(`${payload.eventTitle ?? 'Evento'} ${payload.eventStart ?? ''}`.trim())];
+      case 'CUSTOM':
+        return [this.buildCustomCardRecord(payload)];
       default:
         return [this.buildTextRecord(payload.text ?? payload.url ?? '')];
     }
@@ -134,6 +137,10 @@ export class NdefEngine {
     }
     const query = params.toString();
     return this.buildUrlRecord(`mailto:${address.trim()}${query ? `?${query}` : ''}`);
+  }
+
+  buildCustomCardRecord(payload: NfcPayload): NdefRecord {
+    return this.buildTextRecord(buildCustomCardBody(payload));
   }
 
   buildVCardRecord(payload: NfcPayload): NdefRecord {
@@ -222,10 +229,24 @@ export class NdefEngine {
 
   parseTextRecord(record: NdefRecord): ParsedRecord {
     const text = Ndef.text.decodePayload(Uint8Array.from(asBytes(record.payload)));
+    if (isCustomCardVCard(text)) {
+      return this.parseCustomCardRecord(text);
+    }
     if (text.includes('BEGIN:VCARD')) {
       return this.parseVCard(text);
     }
     return recordOf('TEXT', 'Texto', text, text, { contentType: 'TEXT', text });
+  }
+
+  parseCustomCardRecord(text: string): ParsedRecord {
+    const parsed = parseCustomCard(text);
+    const summary = parsed.cardFields.map((field) => `${field.label}: ${field.value}`).join(' · ');
+    return recordOf('CUSTOM', parsed.cardTitle || 'Cartão personalizado', summary || parsed.cardTitle, text, {
+      contentType: 'CUSTOM',
+      cardTitle: parsed.cardTitle,
+      cardFields: parsed.cardFields,
+      text: summary,
+    });
   }
 
   parseVCard(text: string): ParsedRecord {

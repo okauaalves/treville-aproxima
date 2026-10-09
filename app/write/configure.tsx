@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
+import { CustomCardForm } from '@/components/nfc/CustomCardForm';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -15,12 +17,13 @@ import { Toggle } from '@/components/ui/Toggle';
 import { TypeBadge } from '@/components/ui/TypeBadge';
 import { CONTENT_TYPE_META, isContentType } from '@/constants/nfcTypes';
 import { payloadValidator } from '@/core/validation/payloadValidator';
+import { saveTemplate } from '@/core/offline/database';
 import { replace } from '@/lib/navigation';
 import { useNfcStore } from '@/stores/nfcStore';
 import { useToastStore } from '@/stores/toastStore';
 import type { ContentType } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeContext';
-import type { WifiSecurity, WritePayload } from '@/types/nfc';
+import type { CardField, WifiSecurity, WritePayload } from '@/types/nfc';
 
 function readParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
@@ -58,7 +61,8 @@ export default function ConfigureScreen() {
   const params = useLocalSearchParams<{ contentType?: string | string[]; prefill?: string | string[] }>();
   const requested = readParam(params.contentType);
   const prefill = useMemo(() => parsePrefill(readParam(params.prefill)), [params.prefill]);
-  const [contentType, setContentType] = useState<ContentType>(isContentType(requested) ? requested : prefill?.contentType && isContentType(prefill.contentType) ? prefill.contentType : 'WHATSAPP');
+  const resolvedType = isContentType(requested) ? requested : prefill?.contentType && isContentType(prefill.contentType) ? prefill.contentType : null;
+  const [contentType, setContentType] = useState<ContentType | null>(resolvedType);
   const [open, setOpen] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [phone, setPhone] = useState(prettyPhone(prefill?.phone ?? ''));
@@ -79,10 +83,19 @@ export default function ConfigureScreen() {
   const [latitude, setLatitude] = useState(prefill?.latitude ?? '');
   const [longitude, setLongitude] = useState(prefill?.longitude ?? '');
   const [eventTitle, setEventTitle] = useState(prefill?.eventTitle ?? '');
+  const [cardTitle, setCardTitle] = useState(prefill?.cardTitle ?? '');
+  const [cardIcon, setCardIcon] = useState(prefill?.cardIcon ?? 'IdCard');
+  const [cardColor, setCardColor] = useState(prefill?.cardColor ?? '#3B82F6');
+  const [cardFields, setCardFields] = useState<CardField[]>(prefill?.cardFields?.length ? prefill.cardFields : [{ label: '', value: '' }]);
   const [lockAfterWrite, setLock] = useState(false);
   const [generateQr, setQr] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const meta = CONTENT_TYPE_META[contentType];
+  const meta = contentType ? CONTENT_TYPE_META[contentType] : null;
+  useEffect(() => {
+    if (!contentType) {
+      replace('/write');
+    }
+  }, [contentType]);
   useEffect(() => {
     advancedProgress.value = withTiming(advanced ? 1 : 0, { duration: reduceAnimations ? 80 : 240 });
   }, [advanced, advancedProgress, reduceAnimations]);
@@ -95,8 +108,11 @@ export default function ConfigureScreen() {
     transform: [{ rotate: `${advancedProgress.value * 90}deg` }],
   }));
 
-  function continueWrite() {
-    const payload: WritePayload = {
+  function buildPayload(): WritePayload | null {
+    if (!contentType) {
+      return null;
+    }
+    return {
       contentType,
       phone,
       message,
@@ -117,11 +133,30 @@ export default function ConfigureScreen() {
       latitude,
       longitude,
       eventTitle,
+      cardTitle,
+      cardIcon,
+      cardColor,
+      cardFields,
       includeCountryCode: true,
     };
+  }
+
+  function continueWrite() {
+    const payload = buildPayload();
+    if (!payload) {
+      return;
+    }
     const validation = payloadValidator.validate(payload);
     if (!validation.ok) {
       useToastStore.getState().show(validation.error ?? 'Revise os campos.', 'error');
+      return;
+    }
+    const tag = useNfcStore.getState().currentTag;
+    const bytes = validation.estimatedBytes ?? 0;
+    // Gravação substitui o NDEF inteiro, então o limite é a capacidade da tag.
+    const room = tag ? Math.max(tag.capacity || 0, tag.availableSpace || 0) : 0;
+    if (tag && room > 0 && bytes > room) {
+      useToastStore.getState().show(`A tag comporta cerca de ${room} bytes e este conteúdo usa ${bytes}.`, 'error');
       return;
     }
     useNfcStore.getState().setPendingPayload(payload);
@@ -134,14 +169,43 @@ export default function ConfigureScreen() {
     replace('/write/progress');
   }
 
+  async function saveCardTemplate() {
+    const payload = buildPayload();
+    if (!payload) {
+      return;
+    }
+    const validation = payloadValidator.validate(payload);
+    if (!validation.ok) {
+      useToastStore.getState().show(validation.error ?? 'Revise os campos.', 'error');
+      return;
+    }
+    await saveTemplate({
+      name: cardTitle.trim() || 'Cartão personalizado',
+      type: 'CUSTOM',
+      icon: cardIcon,
+      color: cardColor,
+      configuration: payload,
+    });
+    useToastStore.getState().show('Template salvo.', 'success');
+  }
+
+  if (!contentType || !meta) {
+    return (
+      <Screen>
+        <AppHeader title="Configurar tag" back />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <AppHeader title="Configurar tag" back />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
+        <ExpoGoBanner />
         <Text style={{ color: colors.textPrimary, fontWeight: '700', marginBottom: 8 }}>Tipo de conteúdo</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Tipo de conteúdo" onPress={() => setOpen(true)} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <TypeBadge type={contentType} size={32} />
+          <TypeBadge type={contentType} size={32} iconName={contentType === 'CUSTOM' ? cardIcon : undefined} tint={contentType === 'CUSTOM' ? cardColor : undefined} />
           <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600' }}>{meta.name}</Text>
           <ChevronDown color={colors.textMuted} size={18} />
         </Pressable>
@@ -192,7 +256,13 @@ export default function ConfigureScreen() {
             <Input label="Longitude" value={longitude} onChangeText={setLongitude} keyboardType="decimal-pad" />
           </>
         ) : null}
-        {contentType === 'TEXT' || contentType === 'CUSTOM' ? <Input label="Texto" value={text} onChangeText={setText} multiline maxLength={400} /> : null}
+        {contentType === 'TEXT' ? <Input label="Texto" value={text} onChangeText={setText} multiline maxLength={400} /> : null}
+        {contentType === 'CUSTOM' ? (
+          <>
+            <CustomCardForm title={cardTitle} onTitle={setCardTitle} icon={cardIcon} onIcon={setCardIcon} color={cardColor} onColor={setCardColor} fields={cardFields} onFields={setCardFields} />
+            <PrimaryButton label="Salvar como template" variant="secondary" fullWidth style={{ marginTop: 8, marginBottom: 12 }} onPress={() => void saveCardTemplate()} />
+          </>
+        ) : null}
         {contentType === 'EVENT' ? <Input label="Título do evento" value={eventTitle} onChangeText={setEventTitle} /> : null}
 
         <Card padding={0} style={{ marginBottom: 8 }}>

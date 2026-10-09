@@ -8,6 +8,7 @@ export function toAppUser(user: User | AppUser): AppUser {
     id: user.id,
     email: user.email,
     user_metadata: user.user_metadata ?? {},
+    app_metadata: user.app_metadata,
   };
 }
 

@@ -4,6 +4,7 @@ import { FileText } from 'lucide-react-native';
 
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { Card } from '@/components/ui/Card';
 import { StepProgress, type StepVisual } from '@/components/ui/StepProgress';
 import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
@@ -92,6 +93,7 @@ export default function ReadingScreen() {
     <Screen>
       <AppHeader title="Lendo tag..." back />
       <View style={{ paddingHorizontal: 20, paddingTop: 8, flex: 1 }}>
+        <ExpoGoBanner />
         <StepProgress steps={steps} />
         {failed ? <Text style={[{ color: colors.error, marginTop: 12 }, inter('medium')]}>{failed}</Text> : null}
         <Card padding={14} style={{ marginTop: 16 }}>

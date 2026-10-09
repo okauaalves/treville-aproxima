@@ -37,9 +37,10 @@ function mainValue(record: ParsedRecord): string {
     case 'WIFI':
       return (data.ssid ?? '').trim();
     case 'TEXT':
-    case 'CUSTOM':
     case 'EVENT':
       return (data.text ?? data.eventTitle ?? '').trim();
+    case 'CUSTOM':
+      return (data.cardTitle ?? '').trim();
     case 'VCARD':
       return (data.fullName ?? '').trim().toLowerCase();
     case 'LOCATION':
@@ -53,6 +54,14 @@ function fieldsMatch(expected: ParsedRecord, actual: ParsedRecord): boolean {
   if (expected.contentType === 'VCARD') {
     const keys: (keyof NfcPayload)[] = ['fullName', 'phone', 'email', 'company', 'jobTitle', 'website', 'address'];
     return keys.every((key) => (expected.data[key] ?? '') === (actual.data[key] ?? ''));
+  }
+  if (expected.contentType === 'CUSTOM') {
+    const left = expected.data.cardFields ?? [];
+    const right = actual.data.cardFields ?? [];
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((field, index) => field.label === right[index]?.label && field.value === right[index]?.value);
   }
   if (expected.contentType === 'WIFI') {
     return expected.data.ssid === actual.data.ssid && expected.data.security === actual.data.security;

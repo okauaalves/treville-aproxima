@@ -58,9 +58,18 @@ export interface WifiData {
   security: WifiSecurity;
 }
 
+export interface CardField {
+  label: string;
+  value: string;
+}
+
 export interface WritePayload {
   contentType: ContentType;
   url?: string;
+  cardTitle?: string;
+  cardIcon?: string;
+  cardColor?: string;
+  cardFields?: CardField[];
   phone?: string;
   message?: string;
   includeCountryCode?: boolean;

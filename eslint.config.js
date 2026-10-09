@@ -12,6 +12,12 @@ module.exports = defineConfig([
     },
   },
   {
+    files: ["supabase/functions/**/*.ts"],
+    rules: {
+      "import/no-unresolved": "off",
+    },
+  },
+  {
     files: ["jest.setup.js", "__tests__/**/*.{js,ts,tsx}"],
     languageOptions: {
       globals: {

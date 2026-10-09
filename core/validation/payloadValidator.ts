@@ -40,9 +40,10 @@ export class PayloadValidator {
       case 'WIFI':
         return this.validateWifi(payload);
       case 'TEXT':
-      case 'CUSTOM':
       case 'EVENT':
         return this.validateText(payload.text ?? payload.eventTitle ?? '');
+      case 'CUSTOM':
+        return this.validateCustomCard(payload);
       case 'LOCATION':
         if ((payload.latitude && payload.longitude) || payload.address) {
           return { ok: true };
@@ -118,6 +119,29 @@ export class PayloadValidator {
     }
     if (password.length < 8 || password.length > 63) {
       return fail('A senha WPA deve ter de 8 a 63 caracteres.', 'password');
+    }
+    return { ok: true };
+  }
+
+  validateCustomCard(payload: NfcPayload): ValidationResult {
+    const title = payload.cardTitle?.trim() ?? '';
+    if (!title) {
+      return fail('Informe o título do cartão.', 'cardTitle');
+    }
+    if (title.length > 80) {
+      return fail('O título pode ter no máximo 80 caracteres.', 'cardTitle');
+    }
+    const fields = (payload.cardFields ?? []).filter((field) => field.label.trim() || field.value.trim());
+    if (fields.length === 0) {
+      return fail('Adicione ao menos um campo.', 'cardFields');
+    }
+    for (const field of fields) {
+      if (!field.label.trim() || !field.value.trim()) {
+        return fail('Preencha o rótulo e o valor de cada campo.', 'cardFields');
+      }
+      if (field.label.trim().length > 40 || field.value.trim().length > 120) {
+        return fail('Rótulo até 40 caracteres e valor até 120.', 'cardFields');
+      }
     }
     return { ok: true };
   }
