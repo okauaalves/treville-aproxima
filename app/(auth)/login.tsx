@@ -8,7 +8,7 @@ import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Input } from '@/components/ui/Input';
-import { APP_TAGLINE } from '@/constants/config';
+import { APP_NAME, APP_TAGLINE } from '@/constants/config';
 import { inter } from '@/theme/fonts';
 import { signInAccount, signInGoogleAccount } from '@/lib/authActions';
 import { push, replace } from '@/lib/navigation';
@@ -51,8 +51,8 @@ export default function LoginScreen() {
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 48, flexGrow: 1, justifyContent: 'center' }}>
           {!isSupabaseConfigured ? <Text style={[{ color: colors.textMuted, textAlign: 'center', marginBottom: 12, fontSize: fs(13) }, inter('medium')]}>Modo local — preencha o .env com a URL e a anon key do Supabase para entrar de verdade. A senha não fica salva neste aparelho.</Text> : null}
           <View style={{ alignItems: 'center' }}>
-            <TrevilleLogo size={120} />
-            <Text style={[{ color: colors.primary, fontSize: fs(28), marginTop: 12 }, inter('bold')]}>Tréville</Text>
+            <TrevilleLogo size={120} color={colors.primary} />
+            <Text accessibilityRole="header" style={[{ color: colors.primary, fontSize: fs(28), marginTop: 12, textAlign: 'center' }, inter('bold')]}>{APP_NAME}</Text>
             <Text style={[{ color: colors.textSecondary, fontSize: fs(14), marginTop: 4 }, inter('regular')]}>{APP_TAGLINE}</Text>
           </View>
           <Card style={{ marginTop: 24 }}>

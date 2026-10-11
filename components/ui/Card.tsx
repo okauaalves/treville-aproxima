@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { GlassSurface } from '@/components/ui/GlassSurface';
@@ -35,20 +35,20 @@ export function Card({
   const { colors, isDark } = useTheme();
   const { animated, pressIn, pressOut } = usePressScale();
   const look = variant === 'success' || tone === 'success' ? 'success' : variant === 'error' || tone === 'error' ? 'error' : tone;
-  const background =
-    look === 'success' ? colors.successBg : look === 'error' ? colors.errorBg : look === 'accent' ? (isDark ? colors.surfaceElevated : '#F4F8FF') : colors.surface;
-  const border = look === 'success' ? colors.success : look === 'error' ? colors.error : colors.border;
+  const glass = isDark && (look === 'surface' || look === 'accent');
+  const background = look === 'success' ? colors.successBg : look === 'error' ? colors.errorBg : look === 'accent' ? colors.surfaceElevated : colors.surface;
+  const border = look === 'success' ? colors.success : look === 'error' ? colors.error : colors.glassBorder;
   const frame: ViewStyle = {
-    backgroundColor: isDark && look === 'surface' ? 'transparent' : background,
-    borderRadius: radius.lg,
-    borderWidth: isDark && look === 'surface' ? 0 : 1,
+    backgroundColor: background,
+    borderRadius: radius.card,
+    borderWidth: 1,
     borderColor: border,
     padding,
-    boxShadow: isDark ? shadows.none : shadows.card,
+    ...(Platform.OS === 'web' ? { boxShadow: shadows.card } : { shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 }),
   };
-  const inner = isDark && look === 'surface' ? (
-    <GlassSurface radius={radius.lg} blur={blur} shimmer={shimmer} style={style}>
-      <View style={{ padding }}>{children}</View>
+  const inner = glass ? (
+    <GlassSurface radius={radius.card} blur={blur} shimmer={shimmer} style={style ? { ...style, alignItems: undefined, justifyContent: undefined } : undefined}>
+      <View style={{ padding, alignItems: style?.alignItems, justifyContent: style?.justifyContent }}>{children}</View>
     </GlassSurface>
   ) : (
     <View style={[frame, style]}>{children}</View>

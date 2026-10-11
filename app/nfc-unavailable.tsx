@@ -20,13 +20,13 @@ const COPY: Record<NfcBlockReason, { title: string; message: string; solution: s
   'expo-go': {
     title: 'NFC indisponível no Expo Go',
     message: Platform.OS === 'ios'
-      ? 'NFC disponível apenas no app instalado. Baixe o Tréville na App Store para usar o NFC.'
-      : 'NFC disponível apenas no app instalado. Instale o APK do Tréville para usar o NFC.',
+      ? 'NFC disponível apenas no app instalado. Baixe o Tréville Aproxima na App Store para usar o NFC.'
+      : 'NFC disponível apenas no app instalado. Instale o APK do Tréville Aproxima para usar o NFC.',
     solution: 'Histórico, templates e configurações continuam disponíveis.',
   },
   unsupported: {
     title: 'NFC indisponível',
-    message: 'Este aparelho não oferece NFC para o Tréville.',
+    message: 'Este aparelho não oferece NFC para o Tréville Aproxima.',
     solution: 'Use um celular com NFC pelo aplicativo instalado.',
   },
   disabled: {

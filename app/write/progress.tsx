@@ -14,12 +14,13 @@ import { useTheme } from '@/theme/ThemeContext';
 
 export default function ProgressScreen() {
   const { colors, fs } = useTheme();
-  const { startWrite, simulateTag, simulationAvailable, writeSteps, isScanning } = useNfc();
+  const { startWrite, cancelOperation, simulateTag, simulationAvailable, writeSteps, isScanning } = useNfc();
   const payload = useNfcStore((state) => state.pendingPayload);
   const lastError = useNfcStore((state) => state.lastError);
   const [done, setDone] = useState(false);
   const [failed, setFailed] = useState(false);
   const startRef = useRef(startWrite);
+  const cancelRef = useRef(cancelOperation);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => isScanning);
@@ -31,9 +32,13 @@ export default function ProgressScreen() {
       return;
     }
     let alive = true;
+    let running = true;
+    const cancel = cancelRef.current;
     void (async () => {
       try {
-        const result = await startRef.current();
+        const result = await startRef.current().finally(() => {
+          running = false;
+        });
         if (!alive) {
           return;
         }
@@ -50,6 +55,9 @@ export default function ProgressScreen() {
     })();
     return () => {
       alive = false;
+      if (running) {
+        void cancel();
+      }
     };
   }, [payload]);
 
@@ -73,7 +81,7 @@ export default function ProgressScreen() {
         {done ? (
           <Card variant="success" padding={18} style={{ alignItems: 'center' }}>
             <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-              <CircleCheck color="#fff" size={28} />
+              <CircleCheck color={colors.onSuccess} size={28} />
             </View>
             <Text style={{ color: colors.success, fontSize: fs(18), fontWeight: '800' }}>TAG CONFIGURADA</Text>
             <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 6 }}>A gravação foi concluída e o conteúdo foi verificado.</Text>

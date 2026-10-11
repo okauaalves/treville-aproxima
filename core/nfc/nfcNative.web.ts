@@ -28,5 +28,23 @@ export const NdefStatus = {
   ReadOnly: 3,
 } as const;
 
+export const ReaderModeFlags = {
+  NfcA: 0x1,
+  NfcB: 0x2,
+  NfcF: 0x4,
+  NfcV: 0x8,
+  NoPlatformSounds: 0x100,
+} as const;
+
+export type ReaderOptions = {
+  alertMessage?: string;
+  invalidateAfterFirstRead?: boolean;
+  isReaderModeEnabled?: boolean;
+  readerModeFlags?: number;
+  readerModeDelay?: number;
+};
+
+export type NativeModule = never;
+
 export const Ndef = NdefLib;
 export type { NdefRecord, TagEvent };

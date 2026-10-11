@@ -12,11 +12,13 @@ export const radius = {
   sm: 12,
   md: 14,
   lg: 16,
+  button: 14,
+  card: 16,
   pill: 999,
 } as const;
 
 export const shadows = {
-  card: '0px 4px 10px rgba(15, 23, 42, 0.06)',
+  card: '0px 2px 8px rgba(30, 58, 138, 0.08)',
   none: 'none',
 } as const;
 

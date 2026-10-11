@@ -4,11 +4,17 @@ export type ThemePreference = ColorScheme | 'system';
 
 export interface ThemeColors {
   background: string;
+  backgroundSecondary: string;
   surface: string;
   surfaceElevated: string;
   primary: string;
+  primaryDark: string;
+  primaryLight: string;
+  primaryGlow: string;
   primaryPressed: string;
   onPrimary: string;
+  onSuccess: string;
+  onDanger: string;
   success: string;
   warning: string;
   danger: string;
@@ -28,62 +34,81 @@ export interface ThemeColors {
 
 export const palette = {
   light: {
-    background: '#F8FAFF',
-    primary: '#3B82F6',
-    success: '#16A34A',
+    background: '#EEF2FF',
+    backgroundSecondary: '#E0E7FF',
+    primary: '#1E40AF',
+    success: '#15803D',
   },
   dark: {
-    background: '#0A0F1E',
-    primary: '#3B82F6',
+    background: '#0F172A',
+    backgroundSecondary: '#1E293B',
+    primary: '#60A5FA',
     success: '#22C55E',
   },
 } as const;
 
+/**
+ * Texto sobre botões sólidos (AA): no claro branco sobre #1E40AF (~8.7:1) e #15803D (~5:1).
+ * No escuro primary #60A5FA e success #22C55E são claros — branco ficaria ~2.5:1, então
+ * o texto é #0F172A (~7.8:1 e ~8.6:1). Danger escuro #EF4444 também usa texto escuro (~4.9:1).
+ */
 export const lightColors: ThemeColors = {
   background: palette.light.background,
-  surface: '#FFFFFF',
-  surfaceElevated: '#EEF2FF',
+  backgroundSecondary: palette.light.backgroundSecondary,
+  surface: 'rgba(255,255,255,0.92)',
+  surfaceElevated: '#FFFFFF',
   primary: palette.light.primary,
-  primaryPressed: '#2563EB',
+  primaryDark: '#1E3A8A',
+  primaryLight: '#3B82F6',
+  primaryGlow: 'rgba(30,64,175,0.20)',
+  primaryPressed: '#1E3A8A',
   onPrimary: '#FFFFFF',
+  onSuccess: '#FFFFFF',
+  onDanger: '#FFFFFF',
   success: palette.light.success,
   warning: '#D97706',
   danger: '#DC2626',
   error: '#DC2626',
-  text: '#0A0F1E',
-  textPrimary: '#0A0F1E',
-  textSecondary: '#64748B',
+  text: '#0F172A',
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
   textMuted: '#94A3B8',
-  border: '#E6ECF5',
-  glassBorder: '#E6ECF5',
-  glassBg: '#FFFFFF',
-  successBg: '#E8F8F1',
-  errorBg: 'rgba(220,38,38,0.12)',
-  warningBg: 'rgba(217,119,6,0.12)',
+  border: '#C7D2FE',
+  glassBorder: 'rgba(30,64,175,0.15)',
+  glassBg: 'rgba(255,255,255,0.80)',
+  successBg: 'rgba(21,128,61,0.10)',
+  errorBg: 'rgba(220,38,38,0.10)',
+  warningBg: 'rgba(217,119,6,0.10)',
   overlay: 'rgba(15, 23, 42, 0.45)',
 };
 
 export const darkColors: ThemeColors = {
   background: palette.dark.background,
-  surface: '#12182B',
-  surfaceElevated: '#1A2238',
+  backgroundSecondary: palette.dark.backgroundSecondary,
+  surface: 'rgba(30,41,59,0.90)',
+  surfaceElevated: '#1E293B',
   primary: palette.dark.primary,
-  primaryPressed: '#2563EB',
-  onPrimary: '#FFFFFF',
+  primaryDark: '#3B82F6',
+  primaryLight: '#93C5FD',
+  primaryGlow: 'rgba(96,165,250,0.25)',
+  primaryPressed: '#3B82F6',
+  onPrimary: '#0F172A',
+  onSuccess: '#0F172A',
+  onDanger: '#0F172A',
   success: palette.dark.success,
   warning: '#F59E0B',
   danger: '#EF4444',
   error: '#EF4444',
-  text: '#F8FAFC',
-  textPrimary: '#F8FAFC',
-  textSecondary: '#CBD5E1',
-  textMuted: '#64748B',
-  border: '#243049',
-  glassBorder: 'rgba(255,255,255,0.2)',
-  glassBg: 'rgba(255,255,255,0.08)',
-  successBg: 'rgba(34,197,94,0.16)',
-  errorBg: 'rgba(239,68,68,0.16)',
-  warningBg: 'rgba(245,158,11,0.16)',
+  text: 'rgba(248,250,252,0.95)',
+  textPrimary: 'rgba(248,250,252,0.95)',
+  textSecondary: 'rgba(148,163,184,0.90)',
+  textMuted: 'rgba(100,116,139,0.80)',
+  border: '#334155',
+  glassBorder: 'rgba(96,165,250,0.20)',
+  glassBg: 'rgba(15,23,42,0.85)',
+  successBg: 'rgba(34,197,94,0.12)',
+  errorBg: 'rgba(239,68,68,0.12)',
+  warningBg: 'rgba(245,158,11,0.12)',
   overlay: 'rgba(2, 6, 23, 0.62)',
 };
 
@@ -110,8 +135,8 @@ export type ContentType =
   | 'CUSTOM';
 
 export const ContentTypeColors: Record<ContentType, { dark: string; light: string }> = {
-  URL: { dark: '#3B82F6', light: '#3B82F6' },
-  WHATSAPP: { dark: '#22C55E', light: '#16A34A' },
+  URL: { dark: '#60A5FA', light: '#1E40AF' },
+  WHATSAPP: { dark: '#22C55E', light: '#15803D' },
   PHONE: { dark: '#38BDF8', light: '#0284C7' },
   EMAIL: { dark: '#F59E0B', light: '#D97706' },
   VCARD: { dark: '#A78BFA', light: '#7C3AED' },

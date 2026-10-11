@@ -44,9 +44,9 @@ export async function assessNfc(): Promise<NfcAssessment> {
       'expo-go',
       'NFC indisponível no Expo Go',
       ios
-        ? 'NFC disponível apenas no app instalado. Baixe o Tréville na App Store para usar o NFC.'
-        : 'NFC disponível apenas no app instalado. Instale o APK do Tréville para usar o NFC.',
-      ios ? 'O Expo Go não inclui o módulo NFC. Use o app instalado.' : 'O Expo Go não inclui o módulo NFC. Instale o APK do Tréville.',
+        ? 'NFC disponível apenas no app instalado. Baixe o Tréville Aproxima na App Store para usar o NFC.'
+        : 'NFC disponível apenas no app instalado. Instale o APK do Tréville Aproxima para usar o NFC.',
+      ios ? 'O Expo Go não inclui o módulo NFC. Use o app instalado.' : 'O Expo Go não inclui o módulo NFC. Instale o APK do Tréville Aproxima.',
       false,
       __DEV__,
     );
@@ -67,7 +67,7 @@ export async function assessNfc(): Promise<NfcAssessment> {
     return blocked(
       'unsupported',
       'NFC indisponível',
-      'Este aparelho não oferece NFC para o Tréville.',
+      'Este aparelho não oferece NFC para o Tréville Aproxima.',
       'Use um celular com NFC pelo aplicativo instalado.',
       false,
       false,

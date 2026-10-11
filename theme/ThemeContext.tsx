@@ -10,6 +10,7 @@ import {
 import { AccessibilityInfo, Platform, View } from 'react-native';
 import { DarkTheme, DefaultTheme, type Theme } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useColorScheme, vars } from 'nativewind';
 
 import { springOrTiming as motion } from './animations';
@@ -136,11 +137,11 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <View style={{ flex: 1, overflow: 'hidden', backgroundColor: isDark ? '#05080F' : '#F8FAFF', alignItems: 'center' }}>
+      <LinearGradient colors={[colors.backgroundSecondary, colors.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, overflow: 'hidden', alignItems: 'center' }}>
         <View style={[{ flex: 1, width: '100%', maxWidth: sizes.column, backgroundColor: colors.background }, cssVars]}>
           {children}
         </View>
-      </View>
+      </LinearGradient>
     </ThemeContext.Provider>
   );
 }

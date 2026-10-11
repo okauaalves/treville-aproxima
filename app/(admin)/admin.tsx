@@ -131,7 +131,7 @@ export default function AdminScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Painel Admin — Tréville" back />
+      <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
         {loading ? (
           <>
@@ -170,7 +170,7 @@ export default function AdminScreen() {
                 return (
                   <View key={item.contentType} style={{ marginTop: 8 }}>
                     <Text style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('medium')]}>{item.contentType} · {item.count}</Text>
-                    <View style={{ height: 10, borderRadius: 6, backgroundColor: colors.surfaceElevated, marginTop: 4 }}>
+                    <View style={{ height: 10, borderRadius: 6, backgroundColor: colors.backgroundSecondary, marginTop: 4 }}>
                       <View style={{ width: `${Math.round((item.count / max) * 100)}%`, height: 10, borderRadius: 6, backgroundColor: color }} />
                     </View>
                   </View>

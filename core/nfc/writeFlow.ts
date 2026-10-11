@@ -14,7 +14,7 @@ import { buildQrValue } from '@/utils/qrcode';
 import type { NfcTag, StepStatus, WriteFlowResult, WriteOptions, WritePayload, WriteStepId } from '@/types/nfc';
 import { emptyWriteOptions } from '@/types/nfc';
 
-const WRITE_ALERT = 'Aproxime a tag para gravar';
+const WRITE_ALERT = 'Mantenha o app aberto e aproxime a tag para gravar';
 
 function pause(ms: number): Promise<void> {
   if (useSettingsStore.getState().reduceAnimations || ms <= 0) {

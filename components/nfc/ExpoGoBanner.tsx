@@ -13,8 +13,8 @@ export function ExpoGoBanner() {
   }
   const message =
     Platform.OS === 'ios'
-      ? 'NFC disponível apenas no app instalado. Baixe o Tréville na App Store para usar o NFC.'
-      : 'NFC disponível apenas no app instalado. Instale o APK do Tréville para usar o NFC.';
+      ? 'NFC disponível apenas no app instalado. Baixe o Tréville Aproxima na App Store para usar o NFC.'
+      : 'NFC disponível apenas no app instalado. Instale o APK do Tréville Aproxima para usar o NFC.';
   return (
     <Card padding={14} style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>

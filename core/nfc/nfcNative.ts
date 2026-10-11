@@ -30,11 +30,28 @@ export const NdefStatus = {
   ReadOnly: 3,
 } as const;
 
-type NativeModule = {
+/** Mesmos valores de NfcAdapter.FLAG_READER_* (Android). */
+export const ReaderModeFlags = {
+  NfcA: 0x1,
+  NfcB: 0x2,
+  NfcF: 0x4,
+  NfcV: 0x8,
+  NoPlatformSounds: 0x100,
+} as const;
+
+export type ReaderOptions = {
+  alertMessage?: string;
+  invalidateAfterFirstRead?: boolean;
+  isReaderModeEnabled?: boolean;
+  readerModeFlags?: number;
+  readerModeDelay?: number;
+};
+
+export type NativeModule = {
   start: () => Promise<void>;
   isSupported: () => Promise<boolean>;
   isEnabled: () => Promise<boolean>;
-  requestTechnology: (techs: string[], options?: { alertMessage?: string }) => Promise<void>;
+  requestTechnology: (techs: string[], options?: ReaderOptions) => Promise<void>;
   cancelTechnologyRequest: (options?: { throwOnError?: boolean }) => Promise<void>;
   getTag: () => Promise<TagEvent | null>;
   ndefHandler: {
@@ -43,9 +60,12 @@ type NativeModule = {
     makeReadOnly: () => Promise<void>;
   };
   setEventListener: (event: string, handler: unknown) => void;
-  registerTagEvent: (options?: { invalidateAfterFirstRead?: boolean; isReaderModeEnabled?: boolean }) => Promise<void>;
+  registerTagEvent: (options?: ReaderOptions) => Promise<void>;
   unregisterTagEvent: () => Promise<void>;
   goToNfcSetting: () => Promise<boolean>;
+  getLaunchTagEvent?: () => Promise<TagEvent | null>;
+  getBackgroundTag?: () => Promise<TagEvent | null>;
+  clearBackgroundTag?: () => Promise<void>;
 };
 
 let cached: NativeModule | null | undefined;

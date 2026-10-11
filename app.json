@@ -1,19 +1,19 @@
 {
   "expo": {
-    "name": "Tréville",
-    "slug": "treville-nfc",
+    "name": "Tréville Aproxima",
+    "slug": "nfc-manager",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "treville",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#F8FAFF",
+    "backgroundColor": "#EEF2FF",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nfcmanager.app",
-      "backgroundColor": "#F8FAFF",
+      "backgroundColor": "#EEF2FF",
       "infoPlist": {
-        "NFCReaderUsageDescription": "O Tréville usa o NFC para ler, gravar e apagar tags."
+        "NFCReaderUsageDescription": "O Tréville Aproxima usa o NFC para ler, gravar e apagar tags."
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": [
@@ -39,7 +39,9 @@
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png",
-      "backgroundColor": "#F8FAFF"
+      "backgroundColor": "#EEF2FF",
+      "name": "Tréville Aproxima",
+      "shortName": "Tréville"
     },
     "plugins": [
       "expo-router",
@@ -47,11 +49,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#EEF2FF",
           "image": "./assets/brand/treville-logo.png",
           "imageWidth": 200,
           "dark": {
-            "backgroundColor": "#0A0F1E",
+            "backgroundColor": "#0F172A",
             "image": "./assets/brand/treville-logo.png"
           },
           "android": {
@@ -68,6 +70,7 @@
       "expo-status-bar",
       "expo-sqlite",
       "react-native-nfc-manager",
+      "./plugins/withNfcTechFilter",
       "expo-web-browser",
       "expo-sharing",
       "expo-font",

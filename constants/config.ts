@@ -1,5 +1,5 @@
-export const APP_NAME = 'Tréville';
-export const APP_TAGLINE = 'NFC Manager by Tréville';
+export const APP_NAME = 'Tréville Aproxima';
+export const APP_TAGLINE = 'Aproxime. Configure. Conecte.';
 export const APP_VERSION = '1.0.0';
 export const APP_BUILD = '1';
 /** Fallback nativo. Em runtime use getAuthRedirect() (web usa a origem; nativo usa o scheme treville). */

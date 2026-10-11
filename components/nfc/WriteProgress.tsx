@@ -14,7 +14,7 @@ export function WriteProgress({ steps }: { steps: WriteStep[] }) {
   return (
     <>
       {detecting?.status === 'active' ? (
-        <Text style={[{ color: colors.primary, marginBottom: 12 }, inter('semibold')]}>Aproxime a tag para gravar</Text>
+        <Text style={[{ color: colors.primary, marginBottom: 12 }, inter('semibold')]}>Mantenha o app aberto e aproxime a tag para gravar</Text>
       ) : null}
       <StepProgress
         steps={visible.map((step) => ({

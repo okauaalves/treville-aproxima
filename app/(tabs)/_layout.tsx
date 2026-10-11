@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 
 import { BottomNavigation } from '@/components/ui/BottomNavigation';
+import { useLaunchTag } from '@/hooks/useLaunchTag';
 import { useTheme } from '@/theme/ThemeContext';
 
 export default function TabsLayout() {
   const { reduceAnimations } = useTheme();
+  useLaunchTag();
   return (
     <Tabs tabBar={(props) => <BottomNavigation {...props} />} screenOptions={{ headerShown: false, animation: reduceAnimations ? 'none' : 'fade' }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} />

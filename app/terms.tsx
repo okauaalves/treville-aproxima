@@ -9,11 +9,11 @@ import { useTheme } from '@/theme/ThemeContext';
 const SECTIONS: { title: string; body: string }[] = [
   {
     title: 'Uso responsável do NFC',
-    body: 'Use o Tréville só em tags suas ou de quem autorizou a gravação. Não grave, apague ou trave tags de terceiros sem permissão. Não use o app para fraude, phishing, engenharia social ou para induzir alguém a abrir um link enganoso.',
+    body: 'Use o Tréville Aproxima só em tags suas ou de quem autorizou a gravação. Não grave, apague ou trave tags de terceiros sem permissão. Não use o app para fraude, phishing, engenharia social ou para induzir alguém a abrir um link enganoso.',
   },
   {
     title: 'Limitações de responsabilidade',
-    body: 'Tags podem falhar, chegar danificadas ou ficar somente leitura depois de uma trava permanente. O Tréville não garante que a gravação, a releitura ou a comparação recuperem dados já perdidos. Confira o conteúdo antes de travar uma tag. Este texto não é aconselhamento jurídico.',
+    body: 'Tags podem falhar, chegar danificadas ou ficar somente leitura depois de uma trava permanente. O Tréville Aproxima não garante que a gravação, a releitura ou a comparação recuperem dados já perdidos. Confira o conteúdo antes de travar uma tag. Este texto não é aconselhamento jurídico.',
   },
   {
     title: 'Dados coletados',
@@ -35,7 +35,7 @@ export default function TermsScreen() {
     <Screen>
       <AppHeader title="Termos de uso" back />
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 18 }}>
-        <Text style={[{ color: colors.textSecondary }, inter('regular')]}>NFC Manager by Tréville. Texto genérico, não é aconselhamento jurídico.</Text>
+        <Text style={[{ color: colors.textSecondary }, inter('regular')]}>Tréville Aproxima — Aproxime. Configure. Conecte. Texto genérico, não é aconselhamento jurídico.</Text>
         {SECTIONS.map((section) => (
           <View key={section.title} style={{ gap: 6 }}>
             <Text style={[{ color: colors.textPrimary, fontSize: fs(18) }, inter('bold')]}>{section.title}</Text>

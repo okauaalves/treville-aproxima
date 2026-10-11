@@ -275,9 +275,10 @@ try {
   // 3. Login em modo local + validação.
   const login = await waitFor('Entrar');
   check('login indica modo local', login.includes('Modo local'));
-  check('login com subtítulo NFC Manager by Tréville', login.includes('NFC Manager by Tréville'));
+  check('login com Tréville Aproxima + subtítulo', login.includes('Tréville Aproxima') && login.includes('Aproxime. Configure. Conecte.') && !login.includes('NFC Manager'));
   await delay(600);
   await shot('brand-login');
+  await shot('v2-login');
   const logoRect = await evaluate(`(() => { const r = document.querySelector('[aria-label="Logo Tréville"]').getBoundingClientRect(); return { x: r.left - 8, y: r.top - 8, width: r.width + 16, height: r.height + 16 }; })()`);
   await cdp('Page.captureScreenshot', { format: 'png', clip: { ...logoRect, scale: 4 } }).then(({ data }) => {
     writeFileSync(join(OUT, 'brand-logo-new.png'), Buffer.from(data, 'base64'));
@@ -311,43 +312,61 @@ try {
   await click('Criar conta');
 
   // 5. Home.
-  body = await waitFor('Aproxime uma tag');
+  body = await waitFor('aproxime sua tag');
   check('cadastro leva à Home', true);
-  check('Home com Tréville', body.includes('Tréville'));
+  check('Home com Tréville Aproxima', body.includes('Tréville') && body.includes('Aproxima'));
+  check('Home com instrução de app aberto', body.includes('Mantenha o app aberto') && body.includes('aproxime sua tag'));
+  check('Home com Modo leitura', body.includes('Modo leitura') && !body.includes('Ler tag'));
   check('Home sem Modo de teste', !body.includes('Modo de teste'));
+  check('título da aba', (await evaluate('document.title')).includes('Tréville Aproxima'), await evaluate('document.title'));
   check('logo no header da Home', await evaluate(`!!document.querySelector('[aria-label="Logo Tréville"]')`));
   await delay(800);
   await shot('brand-home');
-  const lightButtons = await rectOf(['Ler tag', 'Gravar tag']);
+  await shot('v2-home');
+  const lightButtons = await rectOf(['Modo leitura', 'Gravar tag']);
   if (lightButtons) {
     await shot('glass-buttons-light', lightButtons);
+    await shot('v2-buttons', lightButtons);
   }
+  const buttonLook = await evaluate(`(() => { const n = [...document.querySelectorAll('[role=button]')].find((x) => x.getAttribute('aria-label') === 'Modo leitura'); const inner = n.firstElementChild; const s = getComputedStyle(inner); return { bg: s.backgroundColor, radius: s.borderTopLeftRadius, color: getComputedStyle(n.querySelector('div[dir], div:last-child') || inner).color }; })()`);
+  check('Modo leitura sólido navy com raio 14', buttonLook.bg === 'rgb(30, 64, 175)' && buttonLook.radius === '14px', JSON.stringify(buttonLook));
+  await viewport(360, 800);
+  await delay(500);
+  const header = await evaluate(`(() => { const h = document.querySelector('[aria-label="Tréville Aproxima"]'); const r = h.getBoundingClientRect(); return { right: r.right, width: innerWidth, text: h.innerText }; })()`);
+  check('header da Home cabe em 360px sem truncar', header.right <= header.width && header.text.includes('Aproxima'), JSON.stringify(header));
+  await shot('v2-home-360');
+  await viewport(390, 844);
   await overflowBoth('home');
 
-  // 6. Ler tag (web sem Web NFC).
-  await click('Ler tag');
+  // 6. Modo leitura (web sem Web NFC).
+  await click('Modo leitura');
   body = await waitFor('Web NFC sem suporte');
   check('Ler → tela NFC indisponível', body.includes('Tentar novamente'));
   check('Modo de teste rotulado em DEV', body.includes('Modo de teste (simulação)'));
   await shot('nfc-indisponivel');
   await overflowBoth('nfc-indisponivel');
   await click('Modo de teste (simulação)');
-  await waitFor('AGUARDANDO TAG');
+  body = await waitFor('Com o app aberto, aproxime a tag NFC');
+  check('Modo leitura com instrução de app aberto', body.includes('Modo leitura') && body.includes('Pronto para ler'));
+  await delay(500);
+  await shot('v2-modo-leitura');
   await click('Simular tag (modo de teste)');
-  body = await waitFor('TAG DETECTADA');
-  await click('Ver conteúdo');
   body = await waitFor('Detectar', 15000);
+  check('Modo leitura vai direto ao resultado', !body.includes('TAG DETECTADA'));
   await delay(2500);
   body = await bodyText();
   check('leitura simulada mostra conteúdo', /Conte[uú]do|Registro|NDEF|https?:/i.test(body), body.slice(0, 120).replace(/\n/g, ' | '));
 
   // 7. Gravar → identificar → escolher → Cartão personalizado.
   await go('/');
-  await waitFor('Aproxime uma tag');
+  await waitFor('aproxime sua tag');
   await click('Gravar tag');
   await waitFor('Web NFC sem suporte');
   await click('Modo de teste (simulação)');
-  await waitFor('Identificar tag');
+  body = await waitFor('Identificar tag');
+  check('identificação pede app aberto', body.includes('Mantenha o app aberto e aproxime a tag'));
+  await delay(500);
+  await shot('v2-scan');
   await click('Simular tag (modo de teste)');
   body = await waitFor('TAG DETECTADA');
   check('identificação mostra modelo/capacidade/gravável/conteúdo', body.includes('Modelo') && body.includes('bytes') && /Gravável|Somente leitura/.test(body) && /Conteúdo atual|Sem conteúdo/.test(body));
@@ -395,6 +414,9 @@ try {
   await delay(400);
   await delay(800);
   await click('Vibração');
+  await evaluate(`[...document.querySelectorAll('*')].forEach((node) => { if (node.scrollTop > 0) node.scrollTop = 0; })`);
+  await delay(300);
+  await shot('v2-settings');
   await overflowBoth('configurações');
   await click('Termos de uso');
   body = await waitFor('Termos de uso');
@@ -404,10 +426,11 @@ try {
 
   await setTheme('Escuro');
   await go('/');
-  await waitFor('Aproxime uma tag');
+  await waitFor('aproxime sua tag');
   await delay(1200);
   await shot('dark/glass-home');
-  const darkButtons = await rectOf(['Ler tag', 'Gravar tag']);
+  await shot('dark/v2-home');
+  const darkButtons = await rectOf(['Modo leitura', 'Gravar tag']);
   if (darkButtons) {
     await shot('glass-buttons-dark', darkButtons);
   }
@@ -423,12 +446,12 @@ try {
   let sawAdmin = false;
   while (Date.now() - adminStart < 20000) {
     body = await bodyText();
-    if (body.includes('Painel Admin — Tréville')) sawAdmin = true;
-    if (body.includes('Aproxime uma tag')) break;
+    if (body.includes('Painel Admin — Tréville Aproxima')) sawAdmin = true;
+    if (body.includes('aproxime sua tag')) break;
     await delay(150);
   }
   const adminUrl = await evaluate('location.pathname');
-  check('/admin como não-admin redireciona para as tabs', body.includes('Aproxime uma tag') && !sawAdmin, `url=${adminUrl} tela=${body.slice(0, 80).replace(/\n/g, ' | ')}`);
+  check('/admin como não-admin redireciona para as tabs', body.includes('aproxime sua tag') && !sawAdmin, `url=${adminUrl} tela=${body.slice(0, 80).replace(/\n/g, ' | ')}`);
 
   // 11. Sair → login → reload sem onboarding.
   await go('/settings');
@@ -441,7 +464,7 @@ try {
   await fill('E-mail', 'luiz@exemplo.com');
   await fill('Senha', '123456');
   await click('Entrar');
-  await waitFor('Aproxime uma tag');
+  await waitFor('aproxime sua tag');
   check('login local entra na Home', true);
   await cdp('Page.reload', { ignoreCache: false });
   await delay(400);
@@ -450,10 +473,10 @@ try {
   while (Date.now() - reloadStart < 30000) {
     body = await bodyText();
     if (body.includes('Antes de começar')) sawOnboarding = true;
-    if (body.includes('Aproxime uma tag')) break;
+    if (body.includes('aproxime sua tag')) break;
     await delay(150);
   }
-  check('reload mantém sessão e não repete onboarding', body.includes('Aproxime uma tag') && !sawOnboarding);
+  check('reload mantém sessão e não repete onboarding', body.includes('aproxime sua tag') && !sawOnboarding);
 
   // 12. Admin sem Supabase configurado (conta local com o e-mail admin).
   await go('/settings');
@@ -469,13 +492,13 @@ try {
   await fill('Senha', '123456');
   await fill('Confirmar senha', '123456');
   await click('Criar conta');
-  await waitFor('Aproxime uma tag');
+  await waitFor('aproxime sua tag');
   await go('/settings');
   body = await waitFor('Configurações');
   check('Painel Admin visível para admin', body.includes('Painel Admin'));
   await click('Painel Admin');
   body = await waitFor('Supabase não configurado', 20000);
-  check('admin mostra erro claro sem Supabase', body.includes('Painel Admin — Tréville'));
+  check('admin mostra erro claro sem Supabase', body.includes('Painel Admin — Tréville Aproxima'));
   await shot('admin-nao-configurado');
   await overflowBoth('admin');
 } catch (error) {

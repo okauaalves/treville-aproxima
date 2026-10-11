@@ -30,7 +30,7 @@ export function Toast() {
   return (
     <Animated.View style={[{ position: 'absolute', top: insets.top + 8, left: 16, right: 16, zIndex: 50 }, style]}>
       <Pressable accessibilityRole="button" accessibilityLabel={message} onPress={hide} style={{ backgroundColor: background, borderRadius: 16, padding: 14 }}>
-        <Text style={[{ color: '#fff', fontSize: fs(14) }, inter('semibold')]}>{message}</Text>
+        <Text style={[{ color: variant === 'warning' ? '#0F172A' : variant === 'error' ? colors.onDanger : variant === 'success' ? colors.onSuccess : colors.onPrimary, fontSize: fs(14) }, inter('semibold')]}>{message}</Text>
       </Pressable>
     </Animated.View>
   );

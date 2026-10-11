@@ -54,7 +54,7 @@ function StepRow({ step, line, lineDone }: { step: { label: string; hint?: strin
             animated,
           ]}
         >
-          {done ? <Check color="#fff" size={16} strokeWidth={2.5} /> : null}
+          {done ? <Check color={colors.onSuccess} size={16} strokeWidth={2.5} /> : null}
           {skipped ? <Minus color={colors.textMuted} size={14} /> : null}
         </Animated.View>
         {line ? <View style={{ width: 2, minHeight: 18, flex: 1, backgroundColor: lineDone ? colors.success : colors.border }} /> : null}

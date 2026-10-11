@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Toggle } from '@/components/ui/Toggle';
-import { APP_TAGLINE } from '@/constants/config';
+import { APP_NAME, APP_TAGLINE } from '@/constants/config';
 import { getOperations } from '@/core/offline/database';
 import { push, replace } from '@/lib/navigation';
 import { isAdminUser } from '@/lib/adminAccess';
@@ -76,7 +76,8 @@ export default function SettingsScreen() {
           <ToggleRow label="Vibração" value={vibration} onChange={(value) => void useSettingsStore.getState().setVibrationEnabled(value)} />
         </Section>
         <Section title="Sobre">
-          <Text style={{ color: colors.textSecondary, paddingHorizontal: 14, paddingTop: 12 }}>{APP_TAGLINE}</Text>
+          <Text style={{ color: colors.textPrimary, fontWeight: '700', paddingHorizontal: 14, paddingTop: 12 }}>{APP_NAME}</Text>
+          <Text style={{ color: colors.textSecondary, paddingHorizontal: 14, paddingTop: 2 }}>{APP_TAGLINE}</Text>
           <Row label="Versão" value={version} first={false} />
           <Row label="Termos de uso" value="" onPress={() => push('/terms')} first={false} />
         </Section>

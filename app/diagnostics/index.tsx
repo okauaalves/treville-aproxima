@@ -10,7 +10,10 @@ import { StatusCard } from '@/components/ui/StatusCard';
 import type { DiagnosticReportData } from '@/core/nfc/DiagnosticEngine';
 import { deviceChecks, type DeviceCheck } from '@/core/nfc/deviceStatus';
 import { assessNfc } from '@/core/nfc/readiness';
+import { ReaderModeBadge } from '@/components/nfc/ReaderModeBadge';
+import { nfcManager } from '@/core/nfc/NfcManager';
 import { useNfc } from '@/hooks/useNfc';
+import { useDispatchState } from '@/hooks/useTagDispatch';
 import { replace } from '@/lib/navigation';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
@@ -19,6 +22,7 @@ export default function DiagnosticsScreen() {
   const { colors, fs } = useTheme();
   const nfc = useNfc();
   const nfcRef = useRef(nfc);
+  const dispatch = useDispatchState();
   const [report, setReport] = useState<DiagnosticReportData | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
@@ -30,7 +34,7 @@ export default function DiagnosticsScreen() {
   useEffect(() => {
     const api = nfcRef.current;
     return () => {
-      void api.unregisterTagEvent();
+      void api.unregisterTagEvent('diagnostics');
     };
   }, []);
 
@@ -42,12 +46,16 @@ export default function DiagnosticsScreen() {
     }
     setWaiting(true);
     setReport(null);
-    await nfc.registerTagEvent(async (tag) => {
-      const result = await nfcRef.current.runDiagnostic(tag);
-      setReport(result);
-      setWaiting(false);
-      await nfcRef.current.unregisterTagEvent();
-    });
+    await nfc.registerTagEvent(
+      async (tag) => {
+        const result = await nfcRef.current.runDiagnostic(tag);
+        setReport(result);
+        setWaiting(false);
+        await nfcRef.current.unregisterTagEvent('diagnostics');
+      },
+      undefined,
+      'diagnostics',
+    );
   }
 
   return (
@@ -56,6 +64,12 @@ export default function DiagnosticsScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <ExpoGoBanner />
         <Text style={[{ color: colors.textSecondary, fontSize: fs(14) }, inter('regular')]}>A análise só lê a tag. Nada é gravado.</Text>
+        <ReaderModeBadge style={{ alignSelf: 'flex-start' }} />
+        {nfcManager.getMode() === 'native' ? (
+          <Text style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
+            Reader mode: {dispatch.active ? `ativo (${dispatch.owner === 'diagnostics' ? 'diagnóstico' : 'tela atual'})` : dispatch.techSession ? 'sessão de gravação/leitura aberta' : 'inativo'}
+          </Text>
+        ) : null}
         {checks.map((item) => (
           <StatusCard key={item.id} title={item.label} subtitle={item.ok ? item.reason : `${item.reason} ${item.solution}`} />
         ))}

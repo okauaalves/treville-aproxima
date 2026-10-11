@@ -20,7 +20,7 @@ const STEPS: { title: string; text: string; icon: LucideIcon }[] = [
   },
   {
     title: 'Ative o NFC nas configurações do seu celular',
-    text: 'Em Ajustes, procure NFC e deixe ligado. Sem isso o Tréville não lê nem grava tags.',
+    text: 'Em Ajustes, procure NFC e deixe ligado. Sem isso o Tréville Aproxima não lê nem grava tags.',
     icon: Nfc,
   },
   {
@@ -54,7 +54,7 @@ export default function OnboardingScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 12, gap: 18 }}>
         <Text style={[{ color: colors.textPrimary, fontSize: fs(28) }, inter('extrabold')]}>Antes de começar</Text>
-        <Text style={[{ color: colors.textSecondary, fontSize: fs(15) }, inter('regular')]}>NFC Manager by Tréville</Text>
+        <Text style={[{ color: colors.textSecondary, fontSize: fs(15) }, inter('regular')]}>Aproxime. Configure. Conecte.</Text>
         {STEPS.map((step) => {
           const Icon = step.icon;
           return (

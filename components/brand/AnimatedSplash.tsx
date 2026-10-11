@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SplashVideo } from '@/components/brand/SplashVideo';
 import { TrevilleLogo } from '@/components/brand/TrevilleLogo';
+import { APP_NAME, APP_TAGLINE } from '@/constants/config';
 import { canLeaveSplash, decideSplashMode, SPLASH_VIDEO_BACKGROUND } from '@/lib/splash';
 import { inter } from '@/theme/fonts';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -67,7 +68,7 @@ function VideoIntro({ introDone, bootReady, onEnd }: { introDone: boolean; bootR
   }, []);
 
   return (
-    <View accessibilityLabel="Abertura do Tréville" style={{ flex: 1, backgroundColor: SPLASH_VIDEO_BACKGROUND }}>
+    <View accessibilityLabel={`Abertura do ${APP_NAME}`} style={{ flex: 1, backgroundColor: SPLASH_VIDEO_BACKGROUND }}>
       <SplashVideo onReady={hideNative} onEnd={onEnd} />
       {!introDone ? (
         <Pressable
@@ -92,7 +93,7 @@ function VideoIntro({ introDone, bootReady, onEnd }: { introDone: boolean; bootR
 }
 
 function LogoIntro({ introDone, bootReady, reduce, onDone }: { introDone: boolean; bootReady: boolean; reduce: boolean; onDone: () => void }) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const scale = useSharedValue(reduce ? 1 : 0);
   const logoOpacity = useSharedValue(reduce ? 1 : 0);
   const titleY = useSharedValue(reduce ? 0 : 20);
@@ -133,14 +134,14 @@ function LogoIntro({ introDone, bootReady, reduce, onDone }: { introDone: boolea
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel="Abrindo Tréville"
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? colors.background : '#FFFFFF' }}
+      accessibilityLabel={`Abrindo ${APP_NAME}`}
+      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: colors.background }}
     >
       <Animated.View style={logoStyle}>
-        <TrevilleLogo size={120} />
+        <TrevilleLogo size={120} color={colors.primary} />
       </Animated.View>
-      <Animated.Text style={[{ color: colors.primary, fontSize: 28, marginTop: 16 }, inter('bold'), titleStyle]}>Tréville</Animated.Text>
-      <Animated.Text style={[{ color: colors.textSecondary, fontSize: 14, marginTop: 6 }, inter('regular'), subtitleStyle]}>NFC Manager</Animated.Text>
+      <Animated.Text style={[{ color: colors.primary, fontSize: 28, marginTop: 16, textAlign: 'center' }, inter('bold'), titleStyle]}>{APP_NAME}</Animated.Text>
+      <Animated.Text style={[{ color: colors.textSecondary, fontSize: 14, marginTop: 6, textAlign: 'center' }, inter('regular'), subtitleStyle]}>{APP_TAGLINE}</Animated.Text>
       {introDone && !bootReady ? <ActivityIndicator color={colors.primary} style={{ marginTop: 28 }} /> : <View style={{ height: 48 }} />}
     </View>
   );

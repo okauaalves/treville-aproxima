@@ -109,7 +109,7 @@ export function useNfc() {
     useNfcStore.getState().setScanning(false);
   }
 
-  async function registerTagEvent(onTag: (tag: NfcTag, records: ParsedRecord[]) => void, onError?: (error: NfcError) => void) {
+  async function registerTagEvent(onTag: (tag: NfcTag, records: ParsedRecord[]) => void, onError?: (error: NfcError) => void, owner = 'screen') {
     useNfcStore.getState().setScanning(true);
     await nfcManager.registerTagEvent(
       (raw) => {
@@ -123,11 +123,12 @@ export function useNfc() {
         const nfcError = error instanceof NfcError ? error : new NfcError('READ_FAILED', error.message);
         onError?.(nfcError);
       },
+      owner,
     );
   }
 
-  async function unregisterTagEvent() {
-    await nfcManager.unregisterTagEvent();
+  async function unregisterTagEvent(owner = 'screen') {
+    await nfcManager.unregisterTagEvent(owner);
     useNfcStore.getState().setScanning(false);
   }
 

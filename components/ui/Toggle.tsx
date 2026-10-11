@@ -111,7 +111,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
         const selected = option.value === value;
         return (
           <Pressable key={option.value} accessibilityRole="button" accessibilityLabel={option.label} accessibilityState={{ selected }} onPress={() => onChange(option.value)} style={{ flex: 1, paddingVertical: 10, borderRadius: 999, alignItems: 'center', backgroundColor: selected ? colors.primary : colors.surface, borderWidth: 1, borderColor: selected ? colors.primary : colors.border }}>
-            <Text style={{ color: selected ? '#fff' : colors.textSecondary, fontSize: fs(13), fontWeight: '600' }}>{option.label}</Text>
+            <Text style={{ color: selected ? colors.onPrimary : colors.textSecondary, fontSize: fs(13), fontWeight: '600' }}>{option.label}</Text>
           </Pressable>
         );
       })}
