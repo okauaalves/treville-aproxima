@@ -55,15 +55,6 @@
           "dark": {
             "backgroundColor": "#0F172A",
             "image": "./assets/brand/treville-logo.png"
-          },
-          "android": {
-            "backgroundColor": "#F3F3F3",
-            "image": "./assets/brand/treville-logo.png",
-            "imageWidth": 200,
-            "dark": {
-              "backgroundColor": "#F3F3F3",
-              "image": "./assets/brand/treville-logo.png"
-            }
           }
         }
       ],
@@ -74,8 +65,7 @@
       "./plugins/withTaskerQueries",
       "expo-web-browser",
       "expo-sharing",
-      "expo-font",
-      "expo-video"
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

@@ -20,7 +20,9 @@ import { CONTENT_TYPE_META, isContentType } from '@/constants/nfcTypes';
 import { payloadValidator } from '@/core/validation/payloadValidator';
 import { saveTemplate } from '@/core/offline/database';
 import { replace } from '@/lib/navigation';
+import { buildSocialUrl, detectSocialUrl, extractSocialUsername, SOCIAL_LABEL, validateSocialUsername, type SocialNetwork } from '@/lib/socialHandle';
 import { useNfcStore } from '@/stores/nfcStore';
+import { inter } from '@/theme/fonts';
 import { useToastStore } from '@/stores/toastStore';
 import type { ContentType } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeContext';
@@ -55,6 +57,14 @@ function parsePrefill(raw: string): Partial<WritePayload> | null {
 
 const TYPES = Object.keys(CONTENT_TYPE_META) as ContentType[];
 
+type UrlMode = 'site' | SocialNetwork;
+
+const URL_MODES: { value: UrlMode; label: string }[] = [
+  { value: 'site', label: 'Site' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+];
+
 export default function ConfigureScreen() {
   const { colors, fs, reduceAnimations } = useTheme();
   const insets = useSafeAreaInsets();
@@ -69,6 +79,9 @@ export default function ConfigureScreen() {
   const [phone, setPhone] = useState(prettyPhone(prefill?.phone ?? ''));
   const [message, setMessage] = useState(prefill?.message ?? '');
   const [url, setUrl] = useState(prefill?.url ?? prefill?.appUri ?? '');
+  const [socialPrefill] = useState(() => (resolvedType === 'URL' && prefill?.url ? detectSocialUrl(prefill.url) : null));
+  const [urlMode, setUrlMode] = useState<UrlMode>(socialPrefill?.network ?? 'site');
+  const [socialUser, setSocialUser] = useState(socialPrefill?.username ?? '');
   const [text, setText] = useState(prefill?.text ?? '');
   const [email, setEmail] = useState(prefill?.email ?? '');
   const [subject, setSubject] = useState(prefill?.subject ?? '');
@@ -115,11 +128,12 @@ export default function ConfigureScreen() {
     if (!contentType) {
       return null;
     }
+    const social = contentType === 'URL' && urlMode !== 'site' ? urlMode : null;
     return {
       contentType,
       phone,
       message,
-      url: contentType === 'LINK_APP' ? undefined : url,
+      url: contentType === 'LINK_APP' ? undefined : social ? buildSocialUrl(social, extractSocialUsername(social, socialUser)) : url,
       appUri: contentType === 'LINK_APP' ? url : undefined,
       text,
       email,
@@ -169,6 +183,13 @@ export default function ConfigureScreen() {
   }
 
   function continueWrite() {
+    if (contentType === 'URL' && urlMode !== 'site') {
+      const social = validateSocialUsername(urlMode, socialUser);
+      if (!social.ok) {
+        useToastStore.getState().show(social.error, 'error');
+        return;
+      }
+    }
     const payload = buildPayload();
     if (!payload) {
       return;
@@ -248,7 +269,44 @@ export default function ConfigureScreen() {
           <Input label="Número" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+55 99 99999-9999" />
         ) : null}
         {contentType === 'WHATSAPP' ? <Input label="Mensagem (opcional)" value={message} onChangeText={setMessage} placeholder="Olá! Gostaria de saber mais informações." multiline /> : null}
-        {contentType === 'URL' || contentType === 'LINK_APP' ? <Input label="Link" value={url} onChangeText={setUrl} autoCapitalize="none" placeholder="https://" /> : null}
+        {contentType === 'URL' ? (
+          <View accessibilityRole="radiogroup" accessibilityLabel="Destino do link" style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+            {URL_MODES.map((mode) => {
+              const selected = urlMode === mode.value;
+              return (
+                <Pressable
+                  key={mode.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={mode.label}
+                  onPress={() => setUrlMode(mode.value)}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : colors.surface }}
+                >
+                  <Text style={[{ color: selected ? '#FFFFFF' : colors.textPrimary, fontSize: fs(14) }, inter('semibold')]}>{mode.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {contentType === 'LINK_APP' || (contentType === 'URL' && urlMode === 'site') ? <Input label="Link" value={url} onChangeText={setUrl} autoCapitalize="none" placeholder="https://" /> : null}
+        {contentType === 'URL' && urlMode !== 'site' ? (
+          <>
+            <Input
+              label={`Usuário do ${SOCIAL_LABEL[urlMode]}`}
+              value={socialUser}
+              onChangeText={(value) => setSocialUser(extractSocialUsername(urlMode, value))}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="seuperfil"
+              accessibilityLabel={`Usuário do ${SOCIAL_LABEL[urlMode]}`}
+              leftIcon={<Text style={[{ color: colors.textSecondary, fontSize: fs(16), marginRight: 2 }, inter('semibold')]}>@</Text>}
+              containerStyle={{ marginBottom: 6 }}
+            />
+            <Text style={[{ color: colors.textMuted, fontSize: fs(12), marginBottom: 14 }, inter('regular')]} numberOfLines={1}>
+              {socialUser ? buildSocialUrl(urlMode, socialUser) : 'O link do perfil é gerado automaticamente.'}
+            </Text>
+          </>
+        ) : null}
         {contentType === 'EMAIL' ? (
           <>
             <Input label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="nome@email.com" />

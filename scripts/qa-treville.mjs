@@ -237,32 +237,31 @@ try {
 
   // 1. Storage limpo: perfil novo do Chrome (sem IndexedDB/localStorage).
   await go('/');
-  let video = null;
+  let splashSeenAt = 0;
   const splashStart = Date.now();
   while (Date.now() - splashStart < 60000) {
-    video = await evaluate(`(() => { const v = document.querySelector('video[data-testid=splash-video]'); return v ? { t: v.currentTime, d: v.duration, paused: v.paused, muted: v.muted, ended: v.ended, fit: getComputedStyle(v).objectFit, w: v.getBoundingClientRect().width, h: v.getBoundingClientRect().height } : null; })()`);
-    if (video && video.t > 0.6) {
-      await shot('video-splash');
+    if (await evaluate(`Boolean(document.querySelector('[data-testid=splash-intro]'))`)) {
+      splashSeenAt = Date.now();
+      await delay(700);
+      await shot('splash-intro');
       break;
     }
     if ((await bodyText()).includes('Antes de começar')) {
       break;
     }
-    await delay(80);
+    await delay(50);
   }
-  check('vídeo de abertura toca sozinho (autoplay muted)', video && video.t > 0.6 && video.muted && !video.paused, JSON.stringify(video));
-  check('vídeo cobre a tela (object-fit cover)', video && video.fit === 'cover' && video.w >= 389 && video.h >= 843);
-  let videoEnded = false;
+  check('abertura animada aparece', splashSeenAt > 0);
+  let splashGone = false;
   const endStart = Date.now();
   while (Date.now() - endStart < 30000) {
-    const state = await evaluate(`(() => { const v = document.querySelector('video[data-testid=splash-video]'); return v ? v.ended : 'gone'; })()`);
-    if (state === true || state === 'gone') {
-      videoEnded = true;
+    if (!(await evaluate(`Boolean(document.querySelector('[data-testid=splash-intro]'))`))) {
+      splashGone = true;
       break;
     }
     await delay(100);
   }
-  check('splash sai depois do fim do vídeo', videoEnded, `duração ${video?.d?.toFixed?.(2)}s`);
+  check('splash sai depois da animação', splashGone, `${((Date.now() - splashSeenAt) / 1000).toFixed(2)}s visível`);
 
   // 2. Onboarding (primeira vez).
   const onboarding = await waitFor('Antes de começar');
@@ -312,24 +311,24 @@ try {
   await click('Criar conta');
 
   // 5. Home.
-  body = await waitFor('aproxime sua tag');
+  body = await waitFor('Toque para ler');
   check('cadastro leva à Home', true);
   check('Home com Tréville Aproxima', body.includes('Tréville') && body.includes('Aproxima'));
-  check('Home com instrução de app aberto', body.includes('Mantenha o app aberto') && body.includes('aproxime sua tag'));
-  check('Home com Modo leitura', body.includes('Modo leitura') && !body.includes('Ler tag'));
+  check('Home com botão único Ler tag + Gravar tag', body.includes('Ler tag') && body.includes('Gravar tag'));
+  check('Home sem Modo leitura/Diagnóstico', !body.includes('Modo leitura') && !body.includes('Diagnóstico NFC'));
   check('Home sem Modo de teste', !body.includes('Modo de teste'));
   check('título da aba', (await evaluate('document.title')).includes('Tréville Aproxima'), await evaluate('document.title'));
   check('logo no header da Home', await evaluate(`!!document.querySelector('[aria-label="Logo Tréville"]')`));
   await delay(800);
   await shot('brand-home');
   await shot('v2-home');
-  const lightButtons = await rectOf(['Modo leitura', 'Gravar tag']);
+  const lightButtons = await rectOf(['Ler tag', 'Gravar tag']);
   if (lightButtons) {
     await shot('glass-buttons-light', lightButtons);
     await shot('v2-buttons', lightButtons);
   }
-  const buttonLook = await evaluate(`(() => { const n = [...document.querySelectorAll('[role=button]')].find((x) => x.getAttribute('aria-label') === 'Modo leitura'); const inner = n.firstElementChild; const s = getComputedStyle(inner); return { bg: s.backgroundColor, radius: s.borderTopLeftRadius, color: getComputedStyle(n.querySelector('div[dir], div:last-child') || inner).color }; })()`);
-  check('Modo leitura sólido navy com raio 14', buttonLook.bg === 'rgb(30, 64, 175)' && buttonLook.radius === '14px', JSON.stringify(buttonLook));
+  const buttonLook = await evaluate(`(() => { const n = [...document.querySelectorAll('[role=button]')].find((x) => x.getAttribute('aria-label') === 'Ler tag'); if (!n) return null; const s = getComputedStyle(n); const r = n.getBoundingClientRect(); return { bg: s.backgroundColor, w: Math.round(r.width), h: Math.round(r.height), radius: s.borderTopLeftRadius }; })()`);
+  check('Ler tag: botão circular sólido navy', !!buttonLook && buttonLook.bg === 'rgb(30, 64, 175)' && Math.abs(buttonLook.w - buttonLook.h) <= 1 && parseFloat(buttonLook.radius) >= buttonLook.w / 2 - 1, JSON.stringify(buttonLook));
   await viewport(360, 800);
   await delay(500);
   const header = await evaluate(`(() => { const h = document.querySelector('[aria-label="Tréville Aproxima"]'); const r = h.getBoundingClientRect(); return { right: r.right, width: innerWidth, text: h.innerText }; })()`);
@@ -338,33 +337,43 @@ try {
   await viewport(390, 844);
   await overflowBoth('home');
 
-  // 6. Modo leitura (web sem Web NFC).
-  await click('Modo leitura');
+  // 6. Ler tag (web sem Web NFC) → cartão virtual em /tag-result.
+  await click('Ler tag');
   body = await waitFor('Web NFC sem suporte');
   check('Ler → tela NFC indisponível', body.includes('Tentar novamente'));
   check('Modo de teste rotulado em DEV', body.includes('Modo de teste (simulação)'));
   await shot('nfc-indisponivel');
   await overflowBoth('nfc-indisponivel');
   await click('Modo de teste (simulação)');
-  body = await waitFor('Com o app aberto, aproxime a tag NFC');
-  check('Modo leitura com instrução de app aberto', body.includes('Modo leitura') && body.includes('Pronto para ler'));
+  body = await waitFor('Aproxime a tag');
+  check('tela de leitura com instrução curta', body.includes('Ler tag') && body.includes('Aproxime a tag'));
   await delay(500);
   await shot('v2-modo-leitura');
   await click('Simular tag (modo de teste)');
-  body = await waitFor('Detectar', 15000);
-  check('Modo leitura vai direto ao resultado', !body.includes('TAG DETECTADA'));
-  await delay(2500);
-  body = await bodyText();
-  check('leitura simulada mostra conteúdo', /Conte[uú]do|Registro|NDEF|https?:/i.test(body), body.slice(0, 120).replace(/\n/g, ' | '));
+  body = await waitFor('Tag verificada', 15000);
+  check('leitura vai direto ao cartão virtual', (await evaluate('location.pathname')) === '/tag-result' && !body.includes('TAG DETECTADA'), await evaluate('location.pathname'));
+  check('cartão mostra diagnóstico resumido', body.includes('Tag funcional') && body.includes('Capacidade'));
+  check('cartão não abre link sozinho', (await evaluate('location.host')) === new URL(BASE).host);
+  await shot('tag-result');
+  await overflowBoth('tag-result');
+  await click('Ver mais detalhes');
+  body = await waitFor('Registros NDEF');
+  check('detalhes expandem UID/tecnologias/registros', body.includes('UID') && body.includes('Tecnologias') && body.includes('Bytes livres'));
+  await click('Ler novamente');
+  body = await waitFor('Aproxime a tag');
+  check('Ler novamente rearma a leitura no cartão', true);
+  await click('Fechar');
+  await waitFor('Toque para ler');
+  check('X do cartão volta à Home', true);
 
   // 7. Gravar → identificar → escolher → Cartão personalizado.
   await go('/');
-  await waitFor('aproxime sua tag');
+  await waitFor('Toque para ler');
   await click('Gravar tag');
   await waitFor('Web NFC sem suporte');
   await click('Modo de teste (simulação)');
   body = await waitFor('Identificar tag');
-  check('identificação pede app aberto', body.includes('Mantenha o app aberto e aproxime a tag'));
+  check('identificação pede para aproximar a tag', body.includes('Aproxime a tag'));
   await delay(500);
   await shot('v2-scan');
   await click('Simular tag (modo de teste)');
@@ -426,11 +435,11 @@ try {
 
   await setTheme('Escuro');
   await go('/');
-  await waitFor('aproxime sua tag');
+  await waitFor('Toque para ler');
   await delay(1200);
   await shot('dark/glass-home');
   await shot('dark/v2-home');
-  const darkButtons = await rectOf(['Modo leitura', 'Gravar tag']);
+  const darkButtons = await rectOf(['Ler tag', 'Gravar tag']);
   if (darkButtons) {
     await shot('glass-buttons-dark', darkButtons);
   }
@@ -447,11 +456,11 @@ try {
   while (Date.now() - adminStart < 20000) {
     body = await bodyText();
     if (body.includes('Painel Admin — Tréville Aproxima')) sawAdmin = true;
-    if (body.includes('aproxime sua tag')) break;
+    if (body.includes('Toque para ler')) break;
     await delay(150);
   }
   const adminUrl = await evaluate('location.pathname');
-  check('/admin como não-admin redireciona para as tabs', body.includes('aproxime sua tag') && !sawAdmin, `url=${adminUrl} tela=${body.slice(0, 80).replace(/\n/g, ' | ')}`);
+  check('/admin como não-admin redireciona para as tabs', body.includes('Toque para ler') && !sawAdmin, `url=${adminUrl} tela=${body.slice(0, 80).replace(/\n/g, ' | ')}`);
 
   // 11. Sair → login → reload sem onboarding.
   await go('/settings');
@@ -464,7 +473,7 @@ try {
   await fill('E-mail', 'luiz@exemplo.com');
   await fill('Senha', '123456');
   await click('Entrar');
-  await waitFor('aproxime sua tag');
+  await waitFor('Toque para ler');
   check('login local entra na Home', true);
   await cdp('Page.reload', { ignoreCache: false });
   await delay(400);
@@ -473,10 +482,10 @@ try {
   while (Date.now() - reloadStart < 30000) {
     body = await bodyText();
     if (body.includes('Antes de começar')) sawOnboarding = true;
-    if (body.includes('aproxime sua tag')) break;
+    if (body.includes('Toque para ler')) break;
     await delay(150);
   }
-  check('reload mantém sessão e não repete onboarding', body.includes('aproxime sua tag') && !sawOnboarding);
+  check('reload mantém sessão e não repete onboarding', body.includes('Toque para ler') && !sawOnboarding);
 
   // 12. Admin sem Supabase configurado (conta local com o e-mail admin).
   await go('/settings');
@@ -492,7 +501,7 @@ try {
   await fill('Senha', '123456');
   await fill('Confirmar senha', '123456');
   await click('Criar conta');
-  await waitFor('aproxime sua tag');
+  await waitFor('Toque para ler');
   await go('/settings');
   body = await waitFor('Configurações');
   check('Painel Admin visível para admin', body.includes('Painel Admin'));

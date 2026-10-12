@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -9,12 +9,14 @@ import { NfcPulse } from '@/components/nfc/NfcPulse';
 import { ReaderModeBadge } from '@/components/nfc/ReaderModeBadge';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
+import { nfcManager } from '@/core/nfc/NfcManager';
 import { setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useNfc } from '@/hooks/useNfc';
 import { useTagDispatch } from '@/hooks/useTagDispatch';
 import { replace } from '@/lib/navigation';
+import { openReadResult } from '@/lib/readResult';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 import type { NfcTag, ParsedRecord } from '@/types/nfc';
@@ -37,15 +39,22 @@ export default function ScanScreen() {
   const [tag, setTag] = useState<NfcTag | null>(null);
   const [records, setRecords] = useState<ParsedRecord[]>([]);
 
-  useTagDispatch((found, foundRecords) => {
-    setPendingRead(found, foundRecords);
-    if (intent === 'read') {
-      replace('/read');
-      return;
-    }
-    setTag(found);
-    setRecords(foundRecords);
-  });
+  useEffect(() => {
+    nfcManager.rearmReading();
+  }, []);
+
+  useTagDispatch(
+    (found, foundRecords) => {
+      if (intent === 'read') {
+        openReadResult(found, foundRecords, 'replace');
+        return;
+      }
+      setPendingRead(found, foundRecords);
+      setTag(found);
+      setRecords(foundRecords);
+    },
+    { once: true },
+  );
 
   const detected = !!tag;
   const readOnly = tag ? !tag.capabilities.canWrite || tag.capabilities.isReadOnly : false;
@@ -66,16 +75,13 @@ export default function ScanScreen() {
 
   return (
     <Screen>
-      <AppHeader title={intent === 'write' ? 'Identificar tag' : 'Modo leitura'} back />
+      <AppHeader title={intent === 'write' ? 'Identificar tag' : 'Ler tag'} back />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
         <ExpoGoBanner />
         <View style={{ alignItems: 'center', marginTop: intent === 'read' && !short ? 24 : 0 }}>
           <NfcPulse size={intent === 'read' ? (short ? 150 : 220) : 132} active={!detected} />
           <Text style={[{ color: colors.textPrimary, fontSize: fs(22), marginTop: 12, textAlign: 'center' }, inter('extrabold')]}>
-            {detected ? 'TAG DETECTADA' : intent === 'read' ? 'Pronto para ler' : 'AGUARDANDO TAG'}
-          </Text>
-          <Text style={[{ color: colors.textSecondary, fontSize: fs(15), marginTop: 6, textAlign: 'center' }, inter('medium')]}>
-            {intent === 'read' ? 'Com o app aberto, aproxime a tag NFC' : 'Mantenha o app aberto e aproxime a tag'}
+            {detected ? 'TAG DETECTADA' : 'Aproxime a tag'}
           </Text>
           <ReaderModeBadge style={{ marginTop: 12 }} />
         </View>

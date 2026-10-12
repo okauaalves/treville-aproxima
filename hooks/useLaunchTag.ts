@@ -3,14 +3,14 @@ import { AppState } from 'react-native';
 
 import { ndefEngine } from '@/core/nfc/NdefEngine';
 import { nfcManager } from '@/core/nfc/NfcManager';
-import { setPendingRead } from '@/core/nfc/pendingRead';
+import { getPendingRead } from '@/core/nfc/pendingRead';
 import { tagAnalyzer } from '@/core/nfc/TagAnalyzer';
-import { push } from '@/lib/navigation';
-import { useNfcStore } from '@/stores/nfcStore';
+import { openReadResult } from '@/lib/readResult';
 
 /**
  * App aberto por uma tag (seletor do Android com o app fechado) ou tag recebida em segundo plano:
- * mostra o resultado da leitura. Montado nas tabs, que só existem com sessão e navegação prontas.
+ * mostra o cartão da leitura e trava a leitura. A mesma tag redespachada pelo sistema enquanto a
+ * leitura está travada é ignorada. Montado nas tabs, que só existem com sessão e navegação prontas.
  */
 export function useLaunchTag() {
   useEffect(() => {
@@ -21,10 +21,11 @@ export function useLaunchTag() {
         return;
       }
       const tag = tagAnalyzer.analyze(raw);
-      const records = ndefEngine.parseContent(tag.ndefRecords);
-      useNfcStore.getState().setCurrentTag(tag);
-      setPendingRead(tag, records);
-      push('/read');
+      if (nfcManager.isReadLocked() && tag.uid && getPendingRead()?.tag.uid === tag.uid) {
+        return;
+      }
+      nfcManager.lockReading();
+      openReadResult(tag, ndefEngine.parseContent(tag.ndefRecords));
     };
     void check();
     const subscription = AppState.addEventListener('change', (next) => {

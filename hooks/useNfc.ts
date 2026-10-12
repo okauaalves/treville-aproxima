@@ -10,8 +10,9 @@ import { nfcWriter } from '@/core/nfc/NfcWriter';
 import { tagAnalyzer } from '@/core/nfc/TagAnalyzer';
 import { buildTechnicalSnapshot } from '@/core/nfc/technical';
 import { writeFlow } from '@/core/nfc/writeFlow';
-import { saveOperation, saveTag } from '@/core/offline/database';
+import { saveOperation } from '@/core/offline/database';
 import { useHaptics } from '@/hooks/useHaptics';
+import { persistReadOperation } from '@/lib/readResult';
 import { useNfcStore } from '@/stores/nfcStore';
 import { useToastStore } from '@/stores/toastStore';
 import type { NfcSimulationKind, NfcTag, ParsedRecord } from '@/types/nfc';
@@ -33,31 +34,8 @@ export function useNfc() {
     return { supported, enabled };
   }
 
-  async function persistRead(tag: NfcTag, records: ParsedRecord[]) {
-    const tagId = tag.uid
-      ? await saveTag({
-          uid: tag.uid,
-          type: tag.type,
-          capacity: tag.capacity,
-          technologies: tag.technologies,
-          isWritable: tag.capabilities.canWrite,
-          isLocked: tag.capabilities.isReadOnly,
-        })
-      : null;
-    return saveOperation({
-      tagId,
-      tagUid: tag.uid,
-      tagType: tag.type,
-      tagCapacity: tag.capacity,
-      operation: 'READ',
-      status: 'SUCCESS',
-      contentType: records[0]?.contentType ?? null,
-      payload: records[0]?.data ?? null,
-      displayTitle: records[0]?.displayTitle ?? (tag.capabilities.supportsNdef ? 'Tag vazia' : 'Tag RFID'),
-      displayValue: records[0]?.displayValue ?? tag.type,
-      integrityPercent: 100,
-      technical: buildTechnicalSnapshot(tag, Platform.OS, nfcManager.isSimulation()),
-    });
+  function persistRead(tag: NfcTag, records: ParsedRecord[]) {
+    return persistReadOperation(tag, records);
   }
 
   async function startRead() {
@@ -112,7 +90,12 @@ export function useNfc() {
     useNfcStore.getState().setScanning(false);
   }
 
-  async function registerTagEvent(onTag: (tag: NfcTag, records: ParsedRecord[]) => void, onError?: (error: NfcError) => void, owner = 'screen') {
+  async function registerTagEvent(
+    onTag: (tag: NfcTag, records: ParsedRecord[]) => void,
+    onError?: (error: NfcError) => void,
+    owner = 'screen',
+    options?: { once?: boolean },
+  ) {
     useNfcStore.getState().setScanning(true);
     await nfcManager.registerTagEvent(
       (raw) => {
@@ -127,6 +110,7 @@ export function useNfc() {
         onError?.(nfcError);
       },
       owner,
+      options,
     );
   }
 

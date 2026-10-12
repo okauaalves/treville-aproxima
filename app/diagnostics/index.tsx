@@ -74,15 +74,18 @@ export default function DiagnosticsScreen() {
     }
     setWaiting(true);
     setReport(null);
+    nfcManager.rearmReading();
+    // Leitura única: o reader mode segue ligado (só descarta tags) até sair da tela; desligá-lo com a
+    // tag encostada faria o Android abrir o link ou reabrir o app pelo intent.
     await nfc.registerTagEvent(
       async (detected) => {
         const result = await nfcRef.current.runDiagnostic(detected);
         show(detected, result);
         setWaiting(false);
-        await nfcRef.current.unregisterTagEvent('diagnostics');
       },
-      undefined,
+      () => setWaiting(false),
       'diagnostics',
+      { once: true },
     );
   }
 
@@ -103,7 +106,7 @@ export default function DiagnosticsScreen() {
         {checks.map((item) => (
           <StatusCard key={item.id} title={item.label} subtitle={item.ok ? item.reason : `${item.reason} ${item.solution}`} />
         ))}
-        <PrimaryButton label={waiting ? 'Aguardando tag...' : 'Iniciar diagnóstico'} onPress={() => void start()} disabled={waiting} />
+        <PrimaryButton label={waiting ? 'Aproxime a tag' : report ? 'Ler novamente' : 'Iniciar diagnóstico'} onPress={() => void start()} disabled={waiting} />
         {nfc.simulationAvailable && nfc.simulateTag && waiting ? (
           <View style={{ gap: 8 }}>
             <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" onPress={() => nfc.simulateTag?.('default')} />

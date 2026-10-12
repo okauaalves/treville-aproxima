@@ -260,17 +260,18 @@ try {
   await fill('Senha', '123456');
   await fill('Confirmar senha', '123456');
   await click('Criar conta');
-  await waitFor('aproxime sua tag');
+  await waitFor('Toque para ler');
 
   // Uma leitura simulada para Recentes/Histórico terem itens.
-  await click('Modo leitura');
+  await click('Ler tag');
   await waitFor('Modo de teste (simulação)');
   await click('Modo de teste (simulação)');
-  await waitFor('Com o app aberto, aproxime a tag NFC');
+  await waitFor('Aproxime a tag');
   await click('Simular tag (modo de teste)');
-  await delay(4000);
+  await waitFor('Tag verificada', 15000);
+  await delay(1000);
   await cdp('Page.navigate', { url: `${BASE}/` });
-  await waitFor('aproxime sua tag', 90000);
+  await waitFor('Toque para ler', 90000);
   await delay(800);
 
   for (const vp of VIEWPORTS) {
@@ -279,7 +280,7 @@ try {
 
     // Home
     await click('Início');
-    await waitFor('aproxime sua tag');
+    await waitFor('Toque para ler');
     await resetScroll();
     let info = await navCheck(vp, `home ${tag}`);
     await overflowCheck(`home ${tag}`);
@@ -294,8 +295,10 @@ try {
       }
     }
     if (vp.width >= 340 && vp.width < 600) {
-      const buttons = await evaluate(`(() => { const v = ${VISIBLE}; const b = [...document.querySelectorAll('[role=button]')].filter(v).filter((n) => ['Modo leitura', 'Gravar tag'].includes(n.getAttribute('aria-label'))).map((n) => { const r = n.getBoundingClientRect(); return { top: Math.round(r.top), h: Math.round(r.height) }; }); return b; })()`);
-      check(`Modo leitura e Gravar lado a lado, mesma altura: ${tag}`, buttons.length === 2 && Math.abs(buttons[0].top - buttons[1].top) <= 2 && buttons[0].h === buttons[1].h, JSON.stringify(buttons));
+      const buttons = await evaluate(`(() => { const v = ${VISIBLE}; const pick = (label) => { const n = [...document.querySelectorAll('[role=button]')].filter(v).find((x) => x.getAttribute('aria-label') === label); if (!n) return null; const r = n.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), cx: Math.round(r.left + r.width / 2), w: Math.round(r.width), h: Math.round(r.height) }; }; const col = document.querySelector('[data-testid="home-content"]').getBoundingClientRect(); return { read: pick('Ler tag'), write: pick('Gravar tag'), center: Math.round(col.left + col.width / 2), legacy: [...document.querySelectorAll('[role=button]')].filter(v).some((x) => ['Modo leitura', 'Diagnóstico NFC'].includes(x.getAttribute('aria-label'))) }; })()`);
+      check(`Ler tag circular e centralizado: ${tag}`, !!buttons.read && Math.abs(buttons.read.cx - buttons.center) <= 2 && Math.abs(buttons.read.w - buttons.read.h) <= 1, JSON.stringify(buttons.read));
+      check(`Gravar tag abaixo de Ler tag: ${tag}`, !!buttons.write && !!buttons.read && buttons.write.top > buttons.read.bottom, JSON.stringify(buttons.write));
+      check(`Home sem Modo leitura/Diagnóstico: ${tag}`, !buttons.legacy);
     }
     if (vp.width === 360) {
       const header = await evaluate(`(() => { const h = [...document.querySelectorAll('[aria-label="Tréville Aproxima"]')].find(${VISIBLE}); const r = h.getBoundingClientRect(); return { right: Math.round(r.right), width: innerWidth, text: h.innerText }; })()`);

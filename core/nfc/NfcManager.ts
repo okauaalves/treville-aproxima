@@ -29,7 +29,8 @@ export class NfcManagerService {
   private sessionOpen = false;
   private techPending = false;
   private dispatchOwner: string | null = null;
-  private dispatchHandler: { onTag: TagHandler; onError?: ErrorHandler } | null = null;
+  private dispatchHandler: { onTag: TagHandler; onError?: ErrorHandler; once?: boolean } | null = null;
+  private readLocked = false;
   private lock: Promise<unknown> = Promise.resolve();
   private listeners = new Set<() => void>();
   private state: DispatchState = { active: false, owner: null, techSession: false };
@@ -102,6 +103,28 @@ export class NfcManagerService {
     return this.dispatchOwner !== null;
   }
 
+  /**
+   * Trava de leitura única: depois da primeira tag entregue por um handler `once`, as próximas são
+   * descartadas até `rearmReading()` ("Ler novamente"). O reader mode continua ligado enquanto a tela
+   * estiver focada só para "engolir" a tag: desligá-lo com a tag encostada faz o Android redespachá-la
+   * (Chrome abre o link ou o app é reaberto pelo intent).
+   */
+  isReadLocked = (): boolean => this.readLocked;
+
+  lockReading(): void {
+    if (!this.readLocked) {
+      this.readLocked = true;
+      this.publish();
+    }
+  }
+
+  rearmReading(): void {
+    if (this.readLocked) {
+      this.readLocked = false;
+      this.publish();
+    }
+  }
+
   async initialize(): Promise<boolean> {
     if (this.mode === 'web' || this.mode === 'simulated') {
       this.initialized = true;
@@ -166,7 +189,7 @@ export class NfcManagerService {
    * `passive` (Home): só no Android nativo — no iOS registerTagEvent abre a folha do sistema,
    * e no web/simulação a Home não pode "ler sozinha".
    */
-  startForegroundDispatch(owner: string, onTag: TagHandler, options?: { passive?: boolean; onError?: ErrorHandler }): Promise<boolean> {
+  startForegroundDispatch(owner: string, onTag: TagHandler, options?: { passive?: boolean; onError?: ErrorHandler; once?: boolean }): Promise<boolean> {
     return this.exclusive(async () => {
       if (this.mode === 'unavailable') {
         return false;
@@ -177,13 +200,25 @@ export class NfcManagerService {
       if (this.techPending || this.sessionOpen) {
         return false;
       }
-      this.dispatchHandler = { onTag, onError: options?.onError };
+      this.dispatchHandler = { onTag, onError: options?.onError, once: options?.once };
       if (this.dispatchOwner !== null) {
         this.dispatchOwner = owner;
         this.publish();
         return true;
       }
-      const deliver: TagHandler = (tag) => this.dispatchHandler?.onTag(tag);
+      const deliver: TagHandler = (tag) => {
+        const handler = this.dispatchHandler;
+        if (!handler || this.readLocked) {
+          return;
+        }
+        if (handler.once) {
+          this.lockReading();
+          if (this.mode !== 'native' || this.platform !== 'android') {
+            void this.stopForegroundDispatch(this.dispatchOwner ?? undefined);
+          }
+        }
+        handler.onTag(tag);
+      };
       const fail: ErrorHandler = (error) => this.dispatchHandler?.onError?.(error);
       if (this.mode === 'web') {
         await webNfc.register(deliver, fail);
@@ -251,11 +286,11 @@ export class NfcManagerService {
     this.publish();
   }
 
-  async registerTagEvent(onTag: TagHandler, onError?: ErrorHandler, owner = 'screen'): Promise<void> {
+  async registerTagEvent(onTag: TagHandler, onError?: ErrorHandler, owner = 'screen', options?: { once?: boolean }): Promise<void> {
     if (this.mode === 'unavailable') {
       throw new NfcError('NFC_NOT_SUPPORTED');
     }
-    await this.startForegroundDispatch(owner, onTag, { onError });
+    await this.startForegroundDispatch(owner, onTag, { onError, once: options?.once });
   }
 
   async unregisterTagEvent(owner = 'screen'): Promise<void> {

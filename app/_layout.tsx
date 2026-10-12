@@ -68,6 +68,7 @@ function RootNavigator() {
           <Stack.Screen name="account" />
           <Stack.Screen name="licenses" />
           <Stack.Screen name="diagnostics/index" />
+          <Stack.Screen name="tag-result/index" options={{ animation: 'fade_from_bottom', contentStyle: { backgroundColor: '#081128' } }} />
           <Stack.Screen name="tag-details/[id]" />
           <Stack.Screen name="tag-details/technical" />
           <Stack.Screen name="automation/index" />

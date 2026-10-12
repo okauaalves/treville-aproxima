@@ -18,7 +18,7 @@ import type { NfcTag, ParsedRecord } from '@/types/nfc';
  */
 export function useTagDispatch(
   onTag: (tag: NfcTag, records: ParsedRecord[]) => void,
-  { enabled = true, passive = false }: { enabled?: boolean; passive?: boolean } = {},
+  { enabled = true, passive = false, once = false }: { enabled?: boolean; passive?: boolean; once?: boolean } = {},
 ) {
   const owner = useId();
   const handler = useRef(onTag);
@@ -45,7 +45,7 @@ export function useTagDispatch(
       };
       const start = () => {
         if (focused && AppState.currentState !== 'background') {
-          void nfcManager.startForegroundDispatch(owner, deliver, { passive }).catch(() => undefined);
+          void nfcManager.startForegroundDispatch(owner, deliver, { passive, once }).catch(() => undefined);
         }
       };
       start();
@@ -70,10 +70,14 @@ export function useTagDispatch(
         unsubscribe();
         void nfcManager.stopForegroundDispatch(owner);
       };
-    }, [enabled, owner, passive]),
+    }, [enabled, owner, passive, once]),
   );
 }
 
 export function useDispatchState() {
   return useSyncExternalStore(nfcManager.subscribe, nfcManager.getDispatchState, nfcManager.getDispatchState);
+}
+
+export function useReadLock(): boolean {
+  return useSyncExternalStore(nfcManager.subscribe, nfcManager.isReadLocked, nfcManager.isReadLocked);
 }

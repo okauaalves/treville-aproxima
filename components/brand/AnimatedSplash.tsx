@@ -1,148 +1,142 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Platform, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SplashVideo } from '@/components/brand/SplashVideo';
 import { TrevilleLogo } from '@/components/brand/TrevilleLogo';
 import { APP_NAME, APP_TAGLINE } from '@/constants/config';
-import { canLeaveSplash, decideSplashMode, SPLASH_VIDEO_BACKGROUND } from '@/lib/splash';
+import { canLeaveSplash, SPLASH_DURATION_MS, SPLASH_REDUCED_DURATION_MS } from '@/lib/splash';
 import { inter } from '@/theme/fonts';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTheme } from '@/theme/ThemeContext';
 
-const SPRING = { damping: 12, stiffness: 100 };
+const BRAND_BLUE = '#3B82F6';
+const LOGO_SIZE = 150;
+const NATIVE_DRIVER = Platform.OS !== 'web';
+
+/** Coordenadas das três colunas em public/logo.svg (viewBox 3486.82 x 2963.26). */
+const SVG_WIDTH = 3486.82;
+const SVG_HEIGHT = 2963.26;
+const COLUMN_WIDTH = 417;
+const COLUMNS = [
+  { cx: 945, cy: 1528, height: 2471, rise: 0.28 },
+  { cx: 1692, cy: 1528, height: 2781, rise: -0.28 },
+  { cx: 2458, cy: 1528, height: 2471, rise: 0.28 },
+];
+
+const UNIT = LOGO_SIZE / SVG_WIDTH;
+const OFFSET_Y = (LOGO_SIZE - SVG_HEIGHT * UNIT) / 2;
+const DOT = COLUMN_WIDTH * UNIT;
 
 function prefersReducedMotionOnWeb(): boolean {
   return Platform.OS === 'web' && typeof window !== 'undefined' ? Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) : false;
 }
 
 export function AnimatedSplash({ bootReady, onFinished }: { bootReady: boolean; onFinished: () => void }) {
+  const { colors, scheme } = useTheme();
   const reduceSetting = useSettingsStore((state) => state.reduceAnimations);
   const [systemReduce, setSystemReduce] = useState(prefersReducedMotionOnWeb);
   const reduce = reduceSetting || systemReduce;
-  const [mode] = useState(() => decideSplashMode({ platform: Platform.OS, reduceMotion: reduce }));
-  const [introFinished, setIntroDone] = useState(false);
-  const introDone = introFinished || (mode === 'video' && reduce);
-  const veil = useSharedValue(1);
+  const [introDone, setIntroDone] = useState(false);
+
+  const [{ appear, form, columnsOpacity, flash, logo, veil }] = useState(() => ({
+    appear: COLUMNS.map(() => new Animated.Value(0)),
+    form: new Animated.Value(0),
+    columnsOpacity: new Animated.Value(1),
+    flash: new Animated.Value(0),
+    logo: new Animated.Value(0),
+    veil: new Animated.Value(1),
+  }));
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    void AccessibilityInfo.isReduceMotionEnabled?.().then(setSystemReduce);
+    void SplashScreen.hideAsync();
+    if (Platform.OS !== 'web') {
+      void AccessibilityInfo.isReduceMotionEnabled?.().then(setSystemReduce);
+    }
   }, []);
+
+  useEffect(() => {
+    const timing = (value: Animated.Value, toValue: number, duration: number, easing = Easing.out(Easing.cubic)) =>
+      Animated.timing(value, { toValue, duration, easing, useNativeDriver: NATIVE_DRIVER });
+
+    const animation = reduce
+      ? timing(logo, 1, SPLASH_REDUCED_DURATION_MS)
+      : Animated.sequence([
+          Animated.stagger(
+            150,
+            appear.map((value) => timing(value, 1, 220, Easing.out(Easing.back(2)))),
+          ),
+          timing(form, 1, 380, Easing.inOut(Easing.cubic)),
+          Animated.parallel([
+            Animated.sequence([timing(flash, 1, 90, Easing.out(Easing.quad)), timing(flash, 0, 180, Easing.in(Easing.quad))]),
+            timing(columnsOpacity, 0, 90),
+            Animated.sequence([Animated.delay(60), timing(logo, 1, 380)]),
+          ]),
+        ]);
+    animation.start();
+    const timer = setTimeout(() => setIntroDone(true), reduce ? SPLASH_REDUCED_DURATION_MS : SPLASH_DURATION_MS);
+    return () => {
+      clearTimeout(timer);
+      animation.stop();
+    };
+  }, [appear, columnsOpacity, flash, form, logo, reduce]);
 
   useEffect(() => {
     if (!canLeaveSplash({ introDone, bootReady })) {
       return;
     }
-    const fade = reduce ? 120 : 320;
-    veil.value = withTiming(0, { duration: fade });
+    const fade = reduce ? 120 : 220;
+    Animated.timing(veil, { toValue: 0, duration: fade, useNativeDriver: NATIVE_DRIVER }).start();
     const timer = setTimeout(onFinished, fade + 16);
     return () => clearTimeout(timer);
   }, [bootReady, introDone, onFinished, reduce, veil]);
 
-  const finishIntro = useCallback(() => setIntroDone(true), []);
-  const veilStyle = useAnimatedStyle(() => ({ opacity: veil.value }));
+  const logoScale = logo.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
+  const textShift = logo.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
 
   return (
-    <Animated.View style={[{ flex: 1 }, veilStyle]}>
-      {mode === 'video' ? (
-        <VideoIntro introDone={introDone} bootReady={bootReady} onEnd={finishIntro} />
-      ) : (
-        <LogoIntro introDone={introDone} bootReady={bootReady} reduce={reduce} onDone={finishIntro} />
-      )}
-    </Animated.View>
-  );
-}
-
-function VideoIntro({ introDone, bootReady, onEnd }: { introDone: boolean; bootReady: boolean; onEnd: () => void }) {
-  const insets = useSafeAreaInsets();
-  const hidden = useRef(false);
-  const hideNative = useCallback(() => {
-    if (hidden.current) {
-      return;
-    }
-    hidden.current = true;
-    void SplashScreen.hideAsync();
-  }, []);
-
-  return (
-    <View accessibilityLabel={`Abertura do ${APP_NAME}`} style={{ flex: 1, backgroundColor: SPLASH_VIDEO_BACKGROUND }}>
-      <SplashVideo onReady={hideNative} onEnd={onEnd} />
-      {!introDone ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Pular abertura"
-          onPress={() => {
-            hideNative();
-            onEnd();
-          }}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-        >
-          <Text style={[{ position: 'absolute', top: insets.top + 12, right: 16, color: '#475569', backgroundColor: 'rgba(15,23,42,0.06)', borderRadius: 999, overflow: 'hidden', fontSize: 14, paddingHorizontal: 14, paddingVertical: 6 }, inter('semibold')]}>
-            Pular
-          </Text>
-        </Pressable>
-      ) : null}
-      {introDone && !bootReady ? (
-        <ActivityIndicator accessibilityLabel="Carregando" color="#64748B" style={{ position: 'absolute', bottom: insets.bottom + 48, alignSelf: 'center' }} />
-      ) : null}
-    </View>
-  );
-}
-
-function LogoIntro({ introDone, bootReady, reduce, onDone }: { introDone: boolean; bootReady: boolean; reduce: boolean; onDone: () => void }) {
-  const { colors } = useTheme();
-  const scale = useSharedValue(reduce ? 1 : 0);
-  const logoOpacity = useSharedValue(reduce ? 1 : 0);
-  const titleY = useSharedValue(reduce ? 0 : 20);
-  const titleOpacity = useSharedValue(reduce ? 1 : 0);
-  const subtitleOpacity = useSharedValue(reduce ? 1 : 0);
-
-  useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
-
-  useEffect(() => {
-    if (reduce) {
-      logoOpacity.value = withTiming(1, { duration: 300 });
-      titleOpacity.value = withTiming(1, { duration: 300 });
-      subtitleOpacity.value = withTiming(1, { duration: 300 });
-      const timer = setTimeout(onDone, 300);
-      return () => clearTimeout(timer);
-    }
-    scale.value = withSequence(withSpring(1.1, SPRING), withSpring(1, SPRING));
-    logoOpacity.value = withTiming(1, { duration: 400 });
-    titleY.value = withDelay(300, withTiming(0, { duration: 400 }));
-    titleOpacity.value = withDelay(300, withTiming(1, { duration: 400 }));
-    subtitleOpacity.value = withDelay(500, withTiming(1, { duration: 400 }));
-    const timer = setTimeout(onDone, 1800);
-    return () => clearTimeout(timer);
-  }, [logoOpacity, onDone, reduce, scale, subtitleOpacity, titleOpacity, titleY]);
-
-  const logoStyle = useAnimatedStyle(() => ({
-    opacity: logoOpacity.value,
-    transform: [{ scale: scale.value }],
-  }));
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity: titleOpacity.value,
-    transform: [{ translateY: titleY.value }],
-  }));
-  const subtitleStyle = useAnimatedStyle(() => ({ opacity: subtitleOpacity.value }));
-
-  return (
-    <View
+    <Animated.View
+      testID="splash-intro"
       accessibilityRole="progressbar"
       accessibilityLabel={`Abrindo ${APP_NAME}`}
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: colors.background }}
+      style={{ flex: 1, opacity: veil, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: colors.background }}
     >
-      <Animated.View style={logoStyle}>
-        <TrevilleLogo size={120} color={colors.primary} />
-      </Animated.View>
-      <Animated.Text style={[{ color: colors.primary, fontSize: 28, marginTop: 16, textAlign: 'center' }, inter('bold'), titleStyle]}>{APP_NAME}</Animated.Text>
-      <Animated.Text style={[{ color: colors.textSecondary, fontSize: 14, marginTop: 6, textAlign: 'center' }, inter('regular'), subtitleStyle]}>{APP_TAGLINE}</Animated.Text>
-      {introDone && !bootReady ? <ActivityIndicator color={colors.primary} style={{ marginTop: 28 }} /> : <View style={{ height: 48 }} />}
-    </View>
+      <View style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
+        {reduce
+          ? null
+          : COLUMNS.map((column, index) => {
+              const stretch = column.height / COLUMN_WIDTH;
+              const scaleY = form.interpolate({ inputRange: [0, 1], outputRange: [1, stretch] });
+              const translateY = form.interpolate({ inputRange: [0, 1], outputRange: [column.rise * column.height * UNIT, 0] });
+              return (
+                <Animated.View
+                  key={column.cx}
+                  style={{
+                    position: 'absolute',
+                    left: column.cx * UNIT - DOT / 2,
+                    top: OFFSET_Y + column.cy * UNIT - DOT / 2,
+                    width: DOT,
+                    height: DOT,
+                    borderRadius: DOT / 2,
+                    backgroundColor: BRAND_BLUE,
+                    opacity: Animated.multiply(appear[index], columnsOpacity),
+                    transform: [{ translateY }, { scale: appear[index] }, { scaleY }],
+                  }}
+                />
+              );
+            })}
+        <Animated.View style={{ position: 'absolute', top: 0, left: 0, opacity: logo, transform: [{ scale: logoScale }] }}>
+          <TrevilleLogo size={LOGO_SIZE} color={BRAND_BLUE} />
+        </Animated.View>
+      </View>
+      <Animated.Text style={[{ color: colors.primary, fontSize: 28, marginTop: 16, textAlign: 'center', opacity: logo, transform: [{ translateY: textShift }] }, inter('bold')]}>
+        {APP_NAME}
+      </Animated.Text>
+      <Animated.Text style={[{ color: colors.textSecondary, fontSize: 14, marginTop: 6, textAlign: 'center', opacity: logo }, inter('regular')]}>{APP_TAGLINE}</Animated.Text>
+      {introDone && !bootReady ? <ActivityIndicator accessibilityLabel="Carregando" color={colors.primary} style={{ marginTop: 28 }} /> : <View style={{ height: 48 }} />}
+      <Animated.View
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#FFFFFF', opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, scheme === 'dark' ? 0.35 : 0.9] }) }}
+      />
+    </Animated.View>
   );
 }

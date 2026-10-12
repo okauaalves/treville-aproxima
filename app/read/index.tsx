@@ -7,9 +7,11 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { Card } from '@/components/ui/Card';
 import { StepProgress, type StepVisual } from '@/components/ui/StepProgress';
+import { nfcManager } from '@/core/nfc/NfcManager';
 import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
 import { useNfc } from '@/hooks/useNfc';
 import { replace } from '@/lib/navigation';
+import { READ_RESULT_ROUTE } from '@/lib/readResult';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
@@ -43,6 +45,7 @@ export default function ReadingScreen() {
         let pending = getPendingRead();
         if (!pending) {
           const result = await nfcRef.current.startRead();
+          nfcManager.lockReading();
           pending = { tag: result.tag, records: result.records };
           setPendingRead(result.tag, result.records);
         }
@@ -60,7 +63,7 @@ export default function ReadingScreen() {
         setActive(applicable.length);
         await nfcRef.current.persistRead(pending.tag, pending.records);
         if (alive) {
-          replace('/tag-details/current');
+          replace(READ_RESULT_ROUTE);
         }
       } catch (error) {
         if (alive) {
