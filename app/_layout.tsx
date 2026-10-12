@@ -21,7 +21,7 @@ import { initDatabase } from '@/core/offline/database';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { startAutoSync, syncIfOnline } from '@/core/offline/syncEngine';
 import { restoreLocalSession } from '@/lib/authActions';
-import { ONBOARDING_KEY } from '@/lib/bootRoute';
+import { readOnboardingDone } from '@/lib/bootRoute';
 import { bindAuthRefresh, getCurrentSession, isSupabaseConfigured, onAuthStateChange } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useBootStore } from '@/stores/bootStore';
@@ -51,6 +51,8 @@ function RootNavigator() {
         <Stack.Screen name="index" options={{ animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth/callback" options={{ animation: 'fade_from_bottom' }} />
+        <Stack.Screen name="auth/reset-password" options={{ animation: 'fade' }} />
+        <Stack.Screen name="terms" />
         <Stack.Protected guard={!user}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
@@ -63,7 +65,6 @@ function RootNavigator() {
           <Stack.Screen name="write/configure" />
           <Stack.Screen name="write/progress" />
           <Stack.Screen name="nfc-unavailable" options={{ animation: 'fade_from_bottom' }} />
-          <Stack.Screen name="terms" />
           <Stack.Screen name="account" />
           <Stack.Screen name="licenses" />
           <Stack.Screen name="diagnostics/index" />
@@ -89,7 +90,7 @@ function BootShell() {
       await initDatabase();
       await nfcManager.initialize();
       await useSettingsStore.getState().loadFromDatabase();
-      const seen = (await AsyncStorage.getItem(ONBOARDING_KEY)) === '1';
+      const seen = await readOnboardingDone(AsyncStorage);
       useBootStore.getState().setOnboardingSeen(seen);
       if (isSupabaseConfigured) {
         const session = await getCurrentSession();

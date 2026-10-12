@@ -11,6 +11,9 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "medium"
       }
     }
   },

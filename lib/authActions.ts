@@ -101,7 +101,7 @@ export async function signInGoogleAccount(): Promise<AppUser | null> {
 
 export async function requestPasswordReset(email: string): Promise<void> {
   if (!isSupabaseConfigured) {
-    throw new Error('A recuperação de senha exige uma conta online.');
+    throw new Error('Modo local: as contas deste aparelho não têm senha online para recuperar.');
   }
   try {
     await resetPassword(email.trim());

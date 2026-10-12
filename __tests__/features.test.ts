@@ -35,7 +35,7 @@ describe('cartão personalizado', () => {
 
 describe('boot', () => {
   it('manda onboarding, login ou abas conforme a sessão', () => {
-    expect(ONBOARDING_KEY).toBe('@tagsluiz/onboarding-v1');
+    expect(ONBOARDING_KEY).toBe('onboarding_done');
     expect(decideInitialRoute({ onboardingSeen: false, hasSession: false })).toBe('/onboarding');
     expect(decideInitialRoute({ onboardingSeen: false, hasSession: true })).toBe('/onboarding');
     expect(decideInitialRoute({ onboardingSeen: true, hasSession: false })).toBe('/(auth)/login');

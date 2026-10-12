@@ -2,11 +2,13 @@ import 'react-native-url-polyfill/auto';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 
-import { parseAuthCallback } from '@/lib/authCallback';
+import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, parseAuthCallback } from '@/lib/authCallback';
 import { getAuthRedirect } from '@/lib/authRedirect';
+
+export const GOOGLE_DISABLED_MESSAGE = 'Login com Google ainda não está ativado no servidor.';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -59,6 +61,18 @@ export function bindAuthRefresh(): () => void {
 
 export function translateAuthError(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (isProviderDisabledMessage(message)) {
+    return GOOGLE_DISABLED_MESSAGE;
+  }
+  if (isExpiredLinkMessage(message)) {
+    return 'Este link expirou ou já foi usado. Peça um novo.';
+  }
+  if (message.includes('rate limit') || message.includes('security purposes')) {
+    return 'Muitas tentativas. Aguarde um minuto e tente de novo.';
+  }
+  if (message.includes('same password') || message.includes('should be different')) {
+    return 'A nova senha precisa ser diferente da atual.';
+  }
   if (message.includes('invalid login') || message.includes('invalid credentials')) {
     return 'E-mail ou senha inválidos.';
   }
@@ -77,32 +91,93 @@ export function translateAuthError(error: unknown): string {
   return 'Não foi possível concluir. Tente novamente.';
 }
 
-export async function createSessionFromUrl(urlValue: string): Promise<Session | null> {
-  if (!supabase) {
-    return null;
+export type AuthCallbackResult = { session: Session | null; recovery: boolean };
+
+let recoveryPending = false;
+
+supabase?.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    recoveryPending = true;
+  }
+});
+
+/** Lê e limpa o aviso de PASSWORD_RECOVERY emitido pelo cliente. */
+export function consumeRecoveryEvent(): boolean {
+  const pending = recoveryPending;
+  recoveryPending = false;
+  return pending;
+}
+
+/** O mesmo code chega pelo openAuthSessionAsync e pelo deep link no Android; trocar duas vezes falha. */
+const inflight = new Map<string, Promise<AuthCallbackResult>>();
+
+export function handleAuthCallbackUrl(urlValue: string): Promise<AuthCallbackResult> {
+  const client = supabase;
+  if (!client) {
+    return Promise.resolve({ session: null, recovery: false });
   }
   const params = parseAuthCallback(urlValue);
-  if (params.error) {
-    throw new Error(params.error);
+  const kind = classifyAuthCallback(params);
+  if (kind === 'error') {
+    return Promise.reject(new Error(params.error || params.errorCode || 'auth_error'));
   }
-  if (params.code) {
-    const { data, error } = await supabase.auth.exchangeCodeForSession(params.code);
-    if (error) {
-      throw error;
+  if (kind === 'empty') {
+    return Promise.resolve({ session: null, recovery: false });
+  }
+  const key = kind === 'code' ? `c:${params.code}` : `t:${params.refreshToken}`;
+  const existing = inflight.get(key);
+  if (existing) {
+    return existing;
+  }
+  const task = (async (): Promise<AuthCallbackResult> => {
+    if (kind === 'code') {
+      const { data, error } = await client.auth.exchangeCodeForSession(params.code as string);
+      if (error) {
+        throw error;
+      }
+      // `redirectType` existe em runtime, mas não está no tipo público de AuthTokenResponse.
+      const redirectType = (data as { redirectType?: string | null }).redirectType;
+      return { session: data.session, recovery: redirectType === 'recovery' || params.type === 'recovery' };
     }
-    return data.session;
-  }
-  if (params.accessToken && params.refreshToken) {
-    const { data, error } = await supabase.auth.setSession({
-      access_token: params.accessToken,
-      refresh_token: params.refreshToken,
+    const { data, error } = await client.auth.setSession({
+      access_token: params.accessToken as string,
+      refresh_token: params.refreshToken as string,
     });
     if (error) {
       throw error;
     }
-    return data.session;
+    return { session: data.session, recovery: params.type === 'recovery' };
+  })();
+  inflight.set(key, task);
+  return task;
+}
+
+export async function createSessionFromUrl(urlValue: string): Promise<Session | null> {
+  return (await handleAuthCallbackUrl(urlValue)).session;
+}
+
+/** `GET /auth/v1/settings` é público e diz quais provedores externos estão ativos. */
+async function googleProviderEnabled(): Promise<boolean | null> {
+  if (!url || !anonKey) {
+    return null;
   }
-  return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`${url.replace(/\/$/, '')}/auth/v1/settings`, {
+      headers: { apikey: anonKey },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { external?: Record<string, boolean> };
+    return typeof body.external?.google === 'boolean' ? body.external.google : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {
@@ -138,14 +213,30 @@ export async function signInWithGoogle(): Promise<Session | null> {
   if (!supabase) {
     throw new Error('LOCAL');
   }
+  if ((await googleProviderEnabled()) === false) {
+    throw new Error('provider is not enabled');
+  }
+  const web = Platform.OS === 'web';
+  const redirectTo = getAuthRedirect();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: getAuthRedirect(), skipBrowserRedirect: true },
+    options: {
+      redirectTo,
+      queryParams: { access_type: 'offline', prompt: 'consent' },
+      skipBrowserRedirect: !web,
+    },
   });
   if (error) {
     throw error;
   }
-  const result = await WebBrowser.openAuthSessionAsync(data.url ?? '', getAuthRedirect());
+  if (web) {
+    // A página sai para o Google e volta em /auth/callback, que conclui a sessão.
+    return null;
+  }
+  if (!data.url) {
+    throw new Error('oauth_url_missing');
+  }
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
   if (result.type !== 'success') {
     return null;
   }
