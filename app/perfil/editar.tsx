@@ -15,7 +15,8 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
 import { getProfile, updateProfile, uploadAvatar } from '@/lib/perfil';
-import { plaquinhasAvailable } from '@/lib/plaquinhas';
+import { goToLogin } from '@/lib/navigation';
+import { isSessionError, plaquinhasAvailable } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { BIO_MAX, DEFAULT_THEME_COLOR, DISPLAY_NAME_MAX, PROFILE_COLORS } from '@/supabase/functions/_shared/profilePage';
@@ -42,7 +43,7 @@ export default function EditarPerfilScreen() {
   const { colors, fs } = useTheme();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
-  const available = plaquinhasAvailable() && !!user;
+  const available = plaquinhasAvailable();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -58,6 +59,10 @@ export default function EditarPerfilScreen() {
       setLoading(false);
       return;
     }
+    if (!user) {
+      goToLogin();
+      return;
+    }
     try {
       const profile = await getProfile();
       setName(profile.display_name ?? '');
@@ -66,12 +71,16 @@ export default function EditarPerfilScreen() {
       setAvatarUrl(profile.avatar_url);
       setFallbackName(profile.full_name ?? '');
       setError(null);
+      setLoading(false);
     } catch (failure) {
+      if (isSessionError(failure)) {
+        goToLogin();
+        return;
+      }
       setError(failure instanceof Error ? failure.message : 'Não foi possível carregar o perfil.');
-    } finally {
       setLoading(false);
     }
-  }, [available]);
+  }, [available, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,6 +111,10 @@ export default function EditarPerfilScreen() {
       setPendingAvatar(null);
       useToastStore.getState().show('Perfil salvo.', 'success');
     } catch (failure) {
+      if (isSessionError(failure)) {
+        goToLogin();
+        return;
+      }
       useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível salvar o perfil.', 'error');
     } finally {
       setSaving(false);
@@ -116,7 +129,7 @@ export default function EditarPerfilScreen() {
       <AppHeader title="Meu Perfil Digital" back />
       {!available ? (
         <View style={{ paddingHorizontal: 20 }}>
-          <ErrorState title="Perfil precisa de conta e conexão" message="Entre com sua conta para criar sua página de perfil." />
+          <ErrorState title="Perfil precisa de conta e conexão" message="Este app está em modo local, sem servidor. O perfil digital precisa de uma conta conectada." />
         </View>
       ) : loading ? (
         <View style={{ paddingHorizontal: 20 }} accessibilityLabel="Carregando perfil">

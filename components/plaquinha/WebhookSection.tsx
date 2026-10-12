@@ -18,7 +18,6 @@ export function WebhookSection({ link, onSaved }: { link: RedirectLink; onSaved:
   const [url, setUrl] = useState(saved ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const unsupported = link.webhook_url === undefined;
 
   async function persist(next: string | null) {
     setBusy(true);
@@ -60,42 +59,34 @@ export function WebhookSection({ link, onSaved }: { link: RedirectLink; onSaved:
         <Text accessibilityRole="header" style={[{ color: colors.textMuted, fontSize: fs(12), letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 }, inter('bold')]}>
           Webhook
         </Text>
-        {unsupported ? (
-          <Text style={[{ color: colors.textSecondary, fontSize: fs(13), lineHeight: fs(19) }, inter('regular')]}>
-            O servidor ainda não tem suporte a webhook. Aplique a atualização do banco (supabase db push).
-          </Text>
-        ) : (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Text style={[{ flex: 1, color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>Webhook ativo</Text>
-              <Toggle value={enabled} onValueChange={onToggle} accessibilityLabel="Webhook ativo" />
-            </View>
-            <Text style={[{ color: colors.textSecondary, fontSize: fs(13), lineHeight: fs(19), marginTop: 6 }, inter('regular')]}>
-              Quando alguém escanear esta plaquinha, enviaremos uma requisição POST para esta URL com os dados do scan.
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={[{ flex: 1, color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>Webhook ativo</Text>
+          <Toggle value={enabled} onValueChange={onToggle} accessibilityLabel="Webhook ativo" />
+        </View>
+        <Text style={[{ color: colors.textSecondary, fontSize: fs(13), lineHeight: fs(19), marginTop: 6 }, inter('regular')]}>
+          Quando alguém escanear esta plaquinha, enviaremos uma requisição POST para esta URL com os dados do scan.
+        </Text>
+        {enabled ? (
+          <View style={{ marginTop: 12 }}>
+            <Input
+              label="URL do webhook"
+              value={url}
+              onChangeText={(value) => {
+                setUrl(value);
+                setError(null);
+              }}
+              placeholder="https://seu-servidor.com/webhook"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              error={error ?? undefined}
+            />
+            <Text style={[{ color: colors.textMuted, fontSize: fs(12), marginTop: -6, marginBottom: 12 }, inter('regular')]}>
+              {'Só https. Envia JSON: link_id, scan_type, scanned_at e scan_count.'}
             </Text>
-            {enabled ? (
-              <View style={{ marginTop: 12 }}>
-                <Input
-                  label="URL do webhook"
-                  value={url}
-                  onChangeText={(value) => {
-                    setUrl(value);
-                    setError(null);
-                  }}
-                  placeholder="https://seu-servidor.com/webhook"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  error={error ?? undefined}
-                />
-                <Text style={[{ color: colors.textMuted, fontSize: fs(12), marginTop: -6, marginBottom: 12 }, inter('regular')]}>
-                  {'Só https. Envia JSON: link_id, scan_type, scanned_at e scan_count.'}
-                </Text>
-                <PrimaryButton label="Salvar webhook" variant="secondary" fullWidth loading={busy} disabled={url.trim() === (saved ?? '')} onPress={save} />
-              </View>
-            ) : null}
-          </>
-        )}
+            <PrimaryButton label="Salvar webhook" variant="secondary" fullWidth loading={busy} disabled={url.trim() === (saved ?? '')} onPress={save} />
+          </View>
+        ) : null}
       </View>
     </Card>
   );

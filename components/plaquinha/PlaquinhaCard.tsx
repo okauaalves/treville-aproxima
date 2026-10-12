@@ -82,7 +82,7 @@ export function PlaquinhaCard({
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             {link.nfc_synced ? <Pill label="NFC" tone="success" /> : null}
             <Pill label="QR" tone="primary" />
-            {link.profile_enabled === undefined ? null : link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
+            {link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
             {!link.is_active ? <Pill label="Inativa" tone="muted" /> : null}
             <View style={{ flex: 1 }} />
             <Pressable

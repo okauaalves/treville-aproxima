@@ -70,18 +70,13 @@ interface LinkRow {
   name: string;
   destination_url: string;
   is_active: boolean;
-  profile_enabled?: boolean;
-  webhook_url?: string | null;
+  profile_enabled: boolean;
+  webhook_url: string | null;
 }
 
 async function loadLink(supabase: SupabaseClient, linkId: string): Promise<{ link: LinkRow | null; failed: boolean }> {
-  const full = await supabase.from('redirect_links').select('id, user_id, name, destination_url, is_active, profile_enabled, webhook_url').eq('id', linkId).maybeSingle();
-  if (!full.error) {
-    return { link: full.data as LinkRow | null, failed: false };
-  }
-  // Migração do perfil ainda não aplicada: segue só com o redirect.
-  const basic = await supabase.from('redirect_links').select('id, user_id, name, destination_url, is_active').eq('id', linkId).maybeSingle();
-  return { link: basic.data as LinkRow | null, failed: Boolean(basic.error) };
+  const { data, error } = await supabase.from('redirect_links').select('id, user_id, name, destination_url, is_active, profile_enabled, webhook_url').eq('id', linkId).maybeSingle();
+  return { link: data as LinkRow | null, failed: Boolean(error) };
 }
 
 /** Só os dados públicos do perfil (sem user_id, webhook ou e-mail). Cache de 10s por plaquinha. */
@@ -153,14 +148,18 @@ function runInBackground(task: Promise<unknown>): Promise<unknown> | undefined {
 
 Deno.serve(async (request) => {
   const requestUrl = new URL(request.url);
+  const pathParts = requestUrl.pathname.split('/').filter(Boolean);
+  const linkId = pathParts[pathParts.length - 1] ?? '';
+  if (!linkId || linkId === 'redirect' || linkId.length < 4) {
+    return json(400, { error: 'Link ID não informado' });
+  }
+
   const wantsJson = requestUrl.searchParams.get('format') === 'json';
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return wantsJson ? json(405, { error: 'method_not_allowed' }) : new Response('Método não permitido.\n', { status: 405, headers: { ...SECURITY_HEADERS, Allow: 'GET, HEAD' } });
   }
 
-  // Valida antes de qualquer consulta ao banco.
-  const segments = requestUrl.pathname.split('/').filter(Boolean);
-  const linkId = segments[segments.length - 1] ?? '';
+  // Valida o formato antes de qualquer consulta ao banco.
   if (!LINK_ID_PATTERN.test(linkId)) {
     return wantsJson ? json(400, { error: 'invalid_id' }) : fail('invalid');
   }

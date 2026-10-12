@@ -4,9 +4,7 @@ import { sanitizeText, sanitizeUrl, validateLinkId, validateWebhookUrl } from '@
 import {
   buildLinkUrl,
   generateLinkId as generateWith,
-  pageRange,
   PLAQUINHA_NAME_MAX,
-  PLAQUINHAS_PAGE_SIZE,
   profilePageUrl,
   resolveProfilePageBase,
   resolveRedirectBase,
@@ -27,14 +25,11 @@ export {
   EMPTY_DESTINATION,
   FALLBACK_REDIRECT_BASE,
   formatDateTimePtBr,
-  hasMorePages,
   isDestinationType,
   LINK_ID_ALPHABET,
   LINK_ID_LENGTH,
-  mergePage,
   parseDestination,
   PLAQUINHA_NAME_MAX,
-  PLAQUINHAS_PAGE_SIZE,
   resolveRedirectBase,
   SCAN_TYPE_LABELS,
   shortDisplayUrl,
@@ -54,39 +49,33 @@ export function getProfilePageUrl(id: string): string {
 
 const MAX_ID_ATTEMPTS = 5;
 const UNIQUE_VIOLATION = '23505';
-const BASE_COLUMNS = 'id, user_id, name, destination_url, destination_type, is_active, scan_count, nfc_synced, qr_synced, created_at, updated_at';
-const PROFILE_COLUMNS = `${BASE_COLUMNS}, profile_enabled, webhook_url`;
-let profileColumns = true;
+const LINK_COLUMNS = 'id, user_id, name, destination_url, destination_type, is_active, scan_count, nfc_synced, created_at, updated_at, profile_enabled, webhook_url';
+const LIST_COLUMNS = 'id, name, destination_url, destination_type, is_active, profile_enabled, nfc_synced, scan_count, created_at';
 
-type DbError = { message?: string; code?: string } | null;
-
-/** Coluna nova ainda não criada no servidor (migração do perfil pendente). */
-export function isMissingColumn(error: DbError | undefined): boolean {
-  const message = (error?.message ?? '').toLowerCase();
-  return error?.code === '42703' || error?.code === 'PGRST204' || (message.includes('column') && (message.includes('does not exist') || message.includes('could not find')));
-}
-
-/** Falso quando o banco ainda não tem as colunas de perfil/webhook. */
-export function profileFeaturesReady(): boolean {
-  return profileColumns;
-}
-
-async function selectWithFallback<R extends { error: DbError }>(run: (columns: string) => PromiseLike<R>): Promise<R> {
-  if (profileColumns) {
-    const result = await run(PROFILE_COLUMNS);
-    if (!result.error || !isMissingColumn(result.error)) {
-      return result;
-    }
-    profileColumns = false;
-  }
-  return run(BASE_COLUMNS);
-}
+type DbError = { message?: string; code?: string; status?: number } | null;
 
 export class PlaquinhaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'PlaquinhaError';
   }
+}
+
+/** Sem sessão, JWT expirado/inválido ou 401: a tela deve mandar para o login. */
+export class SessionError extends PlaquinhaError {
+  constructor(message = 'Sessão expirada. Entre de novo.') {
+    super(message);
+    this.name = 'SessionError';
+  }
+}
+
+export function isSessionError(error: unknown): error is SessionError {
+  return error instanceof SessionError;
+}
+
+function isAuthFailure(error: DbError): boolean {
+  const message = (error?.message ?? '').toLowerCase();
+  return error?.status === 401 || error?.code === 'PGRST301' || error?.code === 'PGRST302' || error?.code === 'PGRST303' || message.includes('jwt');
 }
 
 export function generateLinkId(): string {
@@ -114,24 +103,18 @@ function client() {
 function sessionUserId(): string {
   const id = useAuthStore.getState().user?.id;
   if (!id) {
-    throw new PlaquinhaError('Entre na sua conta para usar as plaquinhas.');
+    throw new SessionError('Entre na sua conta para usar as plaquinhas.');
   }
   return id;
 }
 
 export function friendly(error: DbError, fallback: string): PlaquinhaError {
   const message = (error?.message ?? '').toLowerCase();
+  if (isAuthFailure(error)) {
+    return new SessionError();
+  }
   if (message.includes('fetch') || message.includes('network')) {
     return new PlaquinhaError('Sem conexão. Tente novamente.');
-  }
-  if (isMissingColumn(error) || error?.code === 'PGRST202' || message.includes('could not find the function')) {
-    return new PlaquinhaError('O servidor ainda não tem os recursos de perfil e webhook. Aplique a atualização do banco (supabase db push).');
-  }
-  if (error?.code === '42P01' || message.includes('does not exist') || message.includes('could not find the table')) {
-    return new PlaquinhaError('O servidor ainda não tem as tabelas de plaquinhas.');
-  }
-  if (message.includes('jwt') || message.includes('permission') || error?.code === '42501') {
-    return new PlaquinhaError('Sessão expirada. Entre de novo.');
   }
   return new PlaquinhaError(fallback);
 }
@@ -192,33 +175,26 @@ export async function updateDestino(linkId: string, newUrl: string, type: Destin
   }
 }
 
-export interface PlaquinhasPage {
-  items: RedirectLink[];
-  total: number | null;
-}
-
-/** Página `page` (0-based) das plaquinhas do usuário da sessão, mais novas primeiro, com total exato. */
-export async function getPlaquinhas(page = 0, limit = PLAQUINHAS_PAGE_SIZE): Promise<PlaquinhasPage> {
+/** Todas as plaquinhas do usuário da sessão (ativas e inativas), mais novas primeiro. */
+export async function getPlaquinhas(): Promise<RedirectLink[]> {
   const userId = sessionUserId();
-  const { from, to } = pageRange(page, limit);
-  const { data, error, count } = await selectWithFallback((columns) =>
-    client().from('redirect_links').select(columns, { count: 'exact' }).eq('user_id', userId).order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to),
-  );
+  const { data, error, status } = await client()
+    .from('redirect_links')
+    .select(LIST_COLUMNS)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
   if (error) {
-    throw friendly(error, 'Não foi possível carregar as plaquinhas.');
+    throw friendly({ ...error, status }, 'Não foi possível carregar as plaquinhas.');
   }
-  return { items: (data ?? []) as unknown as RedirectLink[], total: typeof count === 'number' ? count : null };
+  return (data ?? []) as unknown as RedirectLink[];
 }
 
 /** Primeira plaquinha ativa com página de perfil ligada (atalho "Ver minha página"). */
 export async function findProfilePlaquinha(): Promise<RedirectLink | null> {
   const userId = sessionUserId();
-  if (!profileColumns) {
-    return null;
-  }
   const { data, error } = await client()
     .from('redirect_links')
-    .select(PROFILE_COLUMNS)
+    .select(LINK_COLUMNS)
     .eq('user_id', userId)
     .eq('is_active', true)
     .eq('profile_enabled', true)
@@ -226,10 +202,6 @@ export async function findProfilePlaquinha(): Promise<RedirectLink | null> {
     .limit(1)
     .maybeSingle();
   if (error) {
-    if (isMissingColumn(error)) {
-      profileColumns = false;
-      return null;
-    }
     throw friendly(error, 'Não foi possível procurar sua página.');
   }
   return (data as unknown as RedirectLink | null) ?? null;
@@ -239,7 +211,7 @@ export async function getPlaquinha(linkId: string): Promise<RedirectLink | null>
   if (!validateLinkId(linkId)) {
     return null;
   }
-  const { data, error } = await selectWithFallback((columns) => client().from('redirect_links').select(columns).eq('id', linkId).maybeSingle());
+  const { data, error } = await client().from('redirect_links').select(LINK_COLUMNS).eq('id', linkId).maybeSingle();
   if (error) {
     throw friendly(error, 'Não foi possível carregar a plaquinha.');
   }

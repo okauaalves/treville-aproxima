@@ -14,12 +14,27 @@ import {
   SYNC_LABELS,
   type ScanLog,
 } from '@/lib/plaquinhaLogic';
-import { BASE_URL, generateLinkId as appGenerate, getLinkUrl } from '@/lib/plaquinhas';
+import { BASE_URL, friendly, generateLinkId as appGenerate, getLinkUrl, isSessionError } from '@/lib/plaquinhas';
 
 jest.mock('expo-crypto', () => ({
   getRandomBytes: (count: number) => Uint8Array.from({ length: count }, (_, index) => index * 37),
 }));
 jest.mock('@/lib/supabase', () => ({ supabase: null, isSupabaseConfigured: false }));
+
+describe('friendly', () => {
+  it('JWT expirado ou 401 vira erro de sessão', () => {
+    expect(isSessionError(friendly({ code: 'PGRST301', message: 'JWT expired' }, 'x'))).toBe(true);
+    expect(isSessionError(friendly({ message: 'Unauthorized', status: 401 }, 'x'))).toBe(true);
+  });
+
+  it('erro de coluna ou tabela cai na mensagem genérica, nunca em erro de schema', () => {
+    const column = friendly({ code: '42703', message: 'column redirect_links.webhook_url does not exist' }, 'Não foi possível carregar as plaquinhas.');
+    const table = friendly({ code: '42P01', message: 'relation "profiles" does not exist' }, 'Não foi possível carregar o perfil.');
+    expect(isSessionError(column)).toBe(false);
+    expect(column.message).toBe('Não foi possível carregar as plaquinhas.');
+    expect(table.message).toBe('Não foi possível carregar o perfil.');
+  });
+});
 
 describe('generateLinkId', () => {
   it('usa só o alfabeto sem caracteres ambíguos e tamanho 6', () => {
@@ -104,8 +119,8 @@ describe('validação de destino', () => {
 
 describe('status e estatísticas', () => {
   it('rótulos de sincronização', () => {
-    expect(SYNC_LABELS[syncStatus({ nfc_synced: true, qr_synced: true })]).toBe('QR + NFC');
-    expect(SYNC_LABELS[syncStatus({ nfc_synced: false, qr_synced: true })]).toBe('Só QR');
+    expect(SYNC_LABELS[syncStatus({ nfc_synced: true })]).toBe('QR + NFC');
+    expect(SYNC_LABELS[syncStatus({ nfc_synced: false })]).toBe('Só QR');
   });
 
   it('agrega por tipo e pelos últimos 7 dias locais', () => {

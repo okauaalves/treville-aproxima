@@ -3,14 +3,14 @@ import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { EMPTY_PROFILE, validateProfileForm, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfilLogic';
-import { friendly, PlaquinhaError } from '@/lib/plaquinhas';
+import { friendly, PlaquinhaError, SessionError } from '@/lib/plaquinhas';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { isAllowedAvatarUrl, isProfileIcon } from '@/supabase/functions/_shared/profilePage';
 
 export * from '@/lib/perfilLogic';
 
-const PROFILE_COLUMNS = 'id, full_name, display_name, bio, avatar_url, theme_color, theme_style';
+const PROFILE_COLUMNS = 'id, full_name, display_name, bio, avatar_url, theme_color';
 const AVATAR_SIZE = 512;
 
 function client() {
@@ -24,18 +24,27 @@ function client() {
 function sessionUserId(): string {
   const id = useAuthStore.getState().user?.id;
   if (!id) {
-    throw new PlaquinhaError('Entre na sua conta para editar o perfil.');
+    throw new SessionError('Entre na sua conta para editar o perfil.');
   }
   return id;
 }
 
+/** Perfil do usuário da sessão; se a linha ainda não existir, cria uma vazia. */
 export async function getProfile(): Promise<Profile> {
   const userId = sessionUserId();
-  const { data, error } = await client().from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+  const db = client();
+  const { data, error, status } = await db.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
   if (error) {
-    throw friendly(error, 'Não foi possível carregar o perfil.');
+    throw friendly({ ...error, status }, 'Não foi possível carregar o perfil.');
   }
-  return (data as Profile | null) ?? EMPTY_PROFILE(userId);
+  if (data) {
+    return data as Profile;
+  }
+  const created = await db.from('profiles').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true }).select(PROFILE_COLUMNS).maybeSingle();
+  if (created.error) {
+    throw friendly({ ...created.error, status: created.status }, 'Não foi possível criar o perfil.');
+  }
+  return (created.data as Profile | null) ?? EMPTY_PROFILE(userId);
 }
 
 export async function updateProfile(input: { displayName: string; bio: string; themeColor: string; avatarUrl?: string | null }): Promise<Profile> {

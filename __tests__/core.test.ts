@@ -7,7 +7,9 @@ import { formatUid, tagAnalyzer } from '@/core/nfc/TagAnalyzer';
 import { MIGRATIONS, runMigrations, type MigrationDb } from '@/core/offline/migrations';
 import { mapOperationRow } from '@/core/offline/mappers';
 import { parseSettings } from '@/core/offline/settingsParse';
-import { syncInBatches } from '@/core/offline/syncEngine';
+import NetInfo from '@react-native-community/netinfo';
+
+import { REMOTE_SYNC_ENABLED, startAutoSync, syncIfOnline, syncInBatches } from '@/core/offline/syncEngine';
 
 describe('NdefEngine', () => {
   it('faz roundtrip de URL, WhatsApp e vCard', () => {
@@ -125,5 +127,20 @@ describe('syncInBatches', () => {
     );
     expect(total).toBe(3);
     expect(sent).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('sync remoto desligado', () => {
+  it('não consulta rede nem servidor enquanto REMOTE_SYNC_ENABLED for false', async () => {
+    expect(REMOTE_SYNC_ENABLED).toBe(false);
+    const fetchSpy = jest.spyOn(NetInfo, 'fetch');
+    const listenerSpy = jest.spyOn(NetInfo, 'addEventListener');
+    await syncIfOnline();
+    const stop = startAutoSync(10);
+    stop();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(listenerSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    listenerSpy.mockRestore();
   });
 });

@@ -14,9 +14,6 @@ import {
   buildDestination,
   EMPTY_DESTINATION,
   formatDateTimePtBr,
-  hasMorePages,
-  mergePage,
-  pageRange,
   parseDestination,
   profilePageUrl,
   resolveProfilePageBase,
@@ -119,16 +116,6 @@ describe('estatísticas e paginação', () => {
     expect(formatDateTimePtBr(new Date(2026, 0, 5, 9, 7))).toBe('05/01/2026 às 09:07');
     expect(formatDateTimePtBr(null)).toBe('Nunca');
     expect(formatDateTimePtBr('não é data')).toBe('Nunca');
-  });
-
-  it('calcula faixas e junta páginas sem duplicar', () => {
-    expect(pageRange(0)).toEqual({ from: 0, to: 19 });
-    expect(pageRange(2, 20)).toEqual({ from: 40, to: 59 });
-    expect(pageRange(-1, 500)).toEqual({ from: 0, to: 99 });
-    expect(hasMorePages(20, 45)).toBe(true);
-    expect(hasMorePages(45, 45)).toBe(false);
-    expect(hasMorePages(20, null)).toBe(false);
-    expect(mergePage([{ id: 'A' }, { id: 'B' }], [{ id: 'B' }, { id: 'C' }]).map((item) => item.id)).toEqual(['A', 'B', 'C']);
   });
 
   it('uso do mês contra a cota do plano Free', () => {

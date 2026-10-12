@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { CloudOff, Plus, QrCode } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
@@ -12,12 +12,10 @@ import { PlaquinhaCard } from '@/components/plaquinha/PlaquinhaCard';
 import { IconButton } from '@/components/ui/IconButton';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { ErrorState } from '@/components/ui/states';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
-import { push, replace } from '@/lib/navigation';
+import { goToLogin, push, replace } from '@/lib/navigation';
 import { gravarPlaquinhaNaTag } from '@/lib/plaquinhaNfc';
-import { getPlaquinhas, hasMorePages, mergePage, plaquinhasAvailable, PLAQUINHAS_PAGE_SIZE, togglePlaquinha, type RedirectLink } from '@/lib/plaquinhas';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { getPlaquinhas, isSessionError, plaquinhasAvailable, togglePlaquinha, type RedirectLink } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
@@ -36,56 +34,36 @@ export default function PlaquinhasScreen() {
   const { colors, fs } = useTheme();
   const user = useAuthStore((state) => state.user);
   const { isTabletUp, isBigTablet, horizontalPadding } = useBreakpoint();
-  const available = plaquinhasAvailable() && !!user;
+  const available = plaquinhasAvailable();
   const [links, setLinks] = useState<RedirectLink[]>([]);
-  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<RedirectLink | null>(null);
-  const nextPage = useRef(1);
-  const fetchingMore = useRef(false);
   const cols = isBigTablet ? 2 : 1;
   const padding = isTabletUp ? 32 : horizontalPadding;
 
-  /** Recarrega a primeira página (foco, criação, tentar de novo). */
+  /** Recarrega a lista (foco, criação). Falha de consulta vira estado vazio; só sessão inválida vai ao login. */
   const load = useCallback(async () => {
-    if (!available || !user) {
+    if (!available) {
       setLoading(false);
       return;
     }
-    setError(null);
-    try {
-      const first = await getPlaquinhas(0);
-      setLinks(first.items);
-      setTotal(first.total);
-      nextPage.current = 1;
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Não foi possível carregar as plaquinhas.');
-    } finally {
-      setLoading(false);
+    if (!user) {
+      goToLogin();
+      return;
     }
+    try {
+      setLinks(await getPlaquinhas());
+    } catch (failure) {
+      if (isSessionError(failure)) {
+        goToLogin();
+        return;
+      }
+      console.warn('Falha ao carregar plaquinhas', failure);
+      setLinks([]);
+    }
+    setLoading(false);
   }, [available, user]);
-
-  async function loadMore() {
-    if (fetchingMore.current || loading || !hasMorePages(links.length, total)) {
-      return;
-    }
-    fetchingMore.current = true;
-    setLoadingMore(true);
-    try {
-      const page = await getPlaquinhas(nextPage.current);
-      setLinks((current) => mergePage(current, page.items));
-      setTotal(page.total);
-      nextPage.current += 1;
-    } catch (failure) {
-      useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível carregar mais plaquinhas.', 'error');
-    } finally {
-      fetchingMore.current = false;
-      setLoadingMore(false);
-    }
-  }
 
   useFocusEffect(
     useCallback(() => {
@@ -100,6 +78,10 @@ export default function PlaquinhasScreen() {
       useToastStore.getState().show(next ? 'Plaquinha ativada.' : 'Plaquinha desativada. Quem escanear verá um aviso.', 'success');
     } catch (failure) {
       setLinks((current) => current.map((item) => (item.id === link.id ? { ...item, is_active: link.is_active } : item)));
+      if (isSessionError(failure)) {
+        goToLogin();
+        return;
+      }
       useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível mudar o status.', 'error');
     }
   }
@@ -109,7 +91,7 @@ export default function PlaquinhasScreen() {
       title="Minhas Plaquinhas"
       inset={padding}
       right={
-        available && !error ? (
+        available ? (
           <IconButton accessibilityLabel="Criar plaquinha" onPress={() => setCreating(true)}>
             <Plus color={colors.primary} size={24} strokeWidth={2.4} />
           </IconButton>
@@ -130,16 +112,9 @@ export default function PlaquinhasScreen() {
             Plaquinhas precisam de conta e conexão
           </Text>
           <Text style={[{ color: colors.textSecondary, fontSize: fs(15), textAlign: 'center', lineHeight: fs(22), maxWidth: 420 }, inter('regular')]}>
-            {isSupabaseConfigured
-              ? 'Entre na sua conta para criar plaquinhas com QR Code e tag NFC de destino editável.'
-              : 'Este app está em modo local, sem servidor. As plaquinhas guardam o destino online para você poder mudar depois, então precisam de uma conta conectada.'}
+            Este app está em modo local, sem servidor. As plaquinhas guardam o destino online para você poder mudar depois, então precisam de uma conta conectada.
           </Text>
-          {isSupabaseConfigured ? (
-            <PrimaryButton label="Entrar" style={{ marginTop: 8, minWidth: 200 }} onPress={() => void useAuthStore.getState().signOut().then(() => replace('/(auth)/login'))} />
-          ) : (
-            <PrimaryButton label="Voltar ao início" variant="secondary" style={{ marginTop: 8, minWidth: 200 }} onPress={() => replace('/(tabs)')} />
-          )}
-        </Centered>
+          <PrimaryButton label="Voltar ao início" variant="secondary" style={{ marginTop: 8, minWidth: 200 }} onPress={() => replace('/(tabs)')} />        </Centered>
       </Screen>
     );
   }
@@ -153,11 +128,6 @@ export default function PlaquinhasScreen() {
           <Skeleton height={150} />
           <Skeleton height={150} />
         </View>
-      ) : error ? (
-        <Centered>
-          <ErrorState title="Não deu para carregar" message={error} />
-          <PrimaryButton label="Tentar de novo" variant="secondary" onPress={() => { setLoading(true); void load(); }} />
-        </Centered>
       ) : links.length === 0 ? (
         <Centered>
           <BigIcon>
@@ -180,25 +150,11 @@ export default function PlaquinhasScreen() {
           keyExtractor={(item) => item?.id ?? 'filler'}
           columnWrapperStyle={cols > 1 ? { gap: 12 } : undefined}
           contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: 24 }}
-          onEndReached={() => void loadMore()}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={
-            loadingMore ? (
-              <View testID="plaquinhas-loading-more" accessibilityLabel="Carregando mais plaquinhas" style={{ gap: 12 }}>
-                <Skeleton height={150} />
-                {cols > 1 ? null : <Skeleton height={150} />}
-              </View>
-            ) : total !== null && links.length > PLAQUINHAS_PAGE_SIZE && !hasMorePages(links.length, total) ? (
-              <Text style={[{ color: colors.textMuted, fontSize: fs(12), textAlign: 'center', paddingVertical: 12 }, inter('medium')]}>
-                {total} {total === 1 ? 'plaquinha' : 'plaquinhas'}
-              </Text>
-            ) : null
-          }
           renderItem={({ item, index }) => !item ? <View style={{ flex: 1 }} importantForAccessibility="no-hide-descendants" /> : (
             <View style={{ flex: 1 }}>
               <PlaquinhaCard
                 link={item}
-                index={index % PLAQUINHAS_PAGE_SIZE}
+                index={index}
                 onEdit={() => setEditing(item)}
                 onQr={() => push(`/plaquinha/qr/${item.id}`)}
                 onWrite={() => void gravarPlaquinhaNaTag(item.id)}

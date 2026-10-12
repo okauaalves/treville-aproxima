@@ -107,7 +107,7 @@ export function GlassButton({
       >
         {showArrow ? <View style={{ width: 32 }} /> : null}
         {loading ? <ActivityIndicator color={labelColor} /> : icon}
-        <Text style={[{ flexShrink: 1, flex: showArrow ? 1 : undefined, textAlign: 'center', color: labelColor, fontSize: fs(16) }, inter('semibold')]}>{label}</Text>
+        <Text style={[{ flexShrink: 1, ...(showArrow ? { flex: 1 } : {}), textAlign: 'center', color: labelColor, fontSize: fs(16) }, inter('semibold')]}>{label}</Text>
         {showArrow ? (
           <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
             <ArrowRight color={colors.onPrimary} size={16} />

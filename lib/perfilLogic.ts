@@ -17,7 +17,6 @@ export interface Profile {
   bio: string | null;
   avatar_url: string | null;
   theme_color: string;
-  theme_style: string;
 }
 
 export interface ProfileLink {
@@ -155,5 +154,4 @@ export const EMPTY_PROFILE = (id: string): Profile => ({
   bio: null,
   avatar_url: null,
   theme_color: DEFAULT_THEME_COLOR,
-  theme_style: 'glass',
 });

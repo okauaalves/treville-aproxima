@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 
 import { GoogleMark } from '@/components/brand/GoogleMark';
@@ -8,7 +8,7 @@ import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Input } from '@/components/ui/Input';
-import { APP_NAME, APP_TAGLINE } from '@/constants/config';
+import { APP_NAME } from '@/constants/config';
 import { inter } from '@/theme/fonts';
 import { signInAccount, signInGoogleAccount } from '@/lib/authActions';
 import { push, replace } from '@/lib/navigation';
@@ -16,6 +16,9 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/theme/ThemeContext';
 import { validateLogin } from '@/lib/authForm';
+
+const LOGIN_SUBTITLE = 'NFC Manager da Tréville';
+const GOOGLE_ERROR = 'Não foi possível conectar com o Google';
 
 export default function LoginScreen() {
   const { colors, fs } = useTheme();
@@ -65,7 +68,11 @@ export default function LoginScreen() {
         replace('/(tabs)');
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Login com Google indisponível.');
+      setError(caught instanceof Error ? caught.message : GOOGLE_ERROR);
+      // No web o Alert do react-native-web não faz nada; lá vale o erro inline.
+      if (Platform.OS !== 'web') {
+        Alert.alert('Erro', GOOGLE_ERROR);
+      }
     } finally {
       busy.current = false;
       setGoogleLoading(false);
@@ -80,7 +87,7 @@ export default function LoginScreen() {
           <View style={{ alignItems: 'center' }}>
             <TrevilleLogo size={120} color={colors.primary} />
             <Text accessibilityRole="header" style={[{ color: colors.primary, fontSize: fs(28), marginTop: 12, textAlign: 'center' }, inter('bold')]}>{APP_NAME}</Text>
-            <Text style={[{ color: colors.textSecondary, fontSize: fs(14), marginTop: 4 }, inter('regular')]}>{APP_TAGLINE}</Text>
+            <Text style={[{ color: colors.textSecondary, fontSize: fs(14), marginTop: 4 }, inter('regular')]}>{LOGIN_SUBTITLE}</Text>
           </View>
           <Card style={{ marginTop: 24 }}>
             <Text style={[{ color: colors.textPrimary, fontSize: fs(22), marginBottom: 16 }, inter('bold')]}>Entrar</Text>
@@ -91,7 +98,7 @@ export default function LoginScreen() {
               <Text style={[{ color: colors.primary, fontSize: fs(13) }, inter('semibold')]}>Esqueci minha senha</Text>
             </Pressable>
             <PrimaryButton label="Entrar" fullWidth loading={loading} disabled={googleLoading} onPress={() => void submit()} />
-            <PrimaryButton label="Continuar com Google" variant="secondary" icon={<GoogleMark />} fullWidth loading={googleLoading} disabled={loading} style={{ marginTop: 12 }} onPress={() => void google()} />
+            <PrimaryButton label="Continuar com o Google" variant="secondary" icon={<GoogleMark />} fullWidth loading={googleLoading} disabled={loading} style={{ marginTop: 12 }} onPress={() => void google()} />
           </Card>
           <Text style={[{ textAlign: 'center', marginTop: 20, color: colors.textSecondary, fontSize: fs(14) }, inter('regular')]}>
             Não tem conta?{' '}

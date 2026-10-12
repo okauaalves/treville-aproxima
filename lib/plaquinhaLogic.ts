@@ -9,7 +9,6 @@ export const LINK_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const LINK_ID_LENGTH = 6;
 export const FALLBACK_REDIRECT_BASE = 'https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect';
 export const PLAQUINHA_NAME_MAX = 40;
-export const PLAQUINHAS_PAGE_SIZE = 20;
 /** Página pública do perfil (EAS Hosting). `EXPO_PUBLIC_PROFILE_PAGE_URL` sobrescreve. */
 export const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
 
@@ -22,20 +21,19 @@ export const CREATE_DESTINATION_TYPES: DestinationType[] = ['whatsapp', 'instagr
 /** 'nfc_outdated' fica reservado: a URL curta nunca muda, então hoje nunca é calculado. */
 export type SyncStatus = 'qr_nfc' | 'qr_only' | 'nfc_outdated';
 
+/** A lista (aba Plaquinhas) não traz `user_id`, `updated_at` nem `webhook_url`; a tela de detalhe traz. */
 export interface RedirectLink {
   id: string;
-  user_id: string;
+  user_id?: string;
   name: string;
   destination_url: string;
   destination_type: DestinationType | string;
   is_active: boolean;
   scan_count: number;
   nfc_synced: boolean;
-  qr_synced: boolean;
   created_at: string;
-  updated_at: string;
-  /** Ausentes enquanto a migração do perfil não foi aplicada. */
-  profile_enabled?: boolean;
+  updated_at?: string;
+  profile_enabled: boolean;
   webhook_url?: string | null;
 }
 
@@ -216,7 +214,7 @@ export function isDestinationType(value: string): value is DestinationType {
   return value in DESTINATION_LABELS;
 }
 
-export function syncStatus(link: Pick<RedirectLink, 'nfc_synced' | 'qr_synced'>): SyncStatus {
+export function syncStatus(link: Pick<RedirectLink, 'nfc_synced'>): SyncStatus {
   return link.nfc_synced ? 'qr_nfc' : 'qr_only';
 }
 
@@ -299,20 +297,3 @@ export function formatDateTimePtBr(value: string | Date | null | undefined): str
 }
 
 export const SCAN_TYPE_LABELS: Record<'qr' | 'nfc', string> = { qr: 'QR Code', nfc: 'Tag NFC' };
-
-/** Página (0-based) para o `.range()` do Supabase; `hasMore` usa o total exato. */
-export function pageRange(page: number, limit: number = PLAQUINHAS_PAGE_SIZE): { from: number; to: number } {
-  const safePage = Math.max(0, Math.floor(page));
-  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
-  return { from: safePage * safeLimit, to: safePage * safeLimit + safeLimit - 1 };
-}
-
-export function hasMorePages(loaded: number, total: number | null): boolean {
-  return total !== null && loaded < total;
-}
-
-/** Junta páginas sem duplicar (uma plaquinha criada no meio desloca a paginação). */
-export function mergePage<T extends { id: string }>(current: T[], next: T[]): T[] {
-  const seen = new Set(current.map((item) => item.id));
-  return [...current, ...next.filter((item) => !seen.has(item.id))];
-}

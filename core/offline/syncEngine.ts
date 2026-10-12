@@ -10,6 +10,12 @@ import {
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 
+/**
+ * Envio/recebimento de `operations` e `templates` com o Supabase. Desligado enquanto essas tabelas não
+ * existirem no banco remoto (PGRST205 → 404). O armazenamento local continua funcionando.
+ */
+export const REMOTE_SYNC_ENABLED = false;
+
 let syncInProgress = false;
 const BATCH = 50;
 
@@ -131,7 +137,7 @@ async function syncTemplates(userId: string): Promise<void> {
 }
 
 export async function syncIfOnline(): Promise<void> {
-  if (syncInProgress || !isSupabaseConfigured || !supabase) {
+  if (!REMOTE_SYNC_ENABLED || syncInProgress || !isSupabaseConfigured || !supabase) {
     return;
   }
   const userId = useAuthStore.getState().user?.id;
@@ -155,6 +161,9 @@ export async function syncIfOnline(): Promise<void> {
 }
 
 export function startAutoSync(intervalMs = 30000): () => void {
+  if (!REMOTE_SYNC_ENABLED) {
+    return () => {};
+  }
   const timer = setInterval(() => {
     void syncIfOnline();
   }, intervalMs);
