@@ -50,6 +50,7 @@ export function PlaquinhaCard({
   onWrite,
   onToggle,
   onProfile,
+  onStats,
 }: {
   link: RedirectLink;
   index: number;
@@ -58,6 +59,7 @@ export function PlaquinhaCard({
   onWrite: () => void;
   onToggle: (next: boolean) => void;
   onProfile: () => void;
+  onStats: () => void;
 }) {
   const { colors, fs, reduceAnimations } = useTheme();
   const type = isDestinationType(link.destination_type) ? link.destination_type : 'url';
@@ -83,12 +85,19 @@ export function PlaquinhaCard({
             {link.profile_enabled === undefined ? null : link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
             {!link.is_active ? <Pill label="Inativa" tone="muted" /> : null}
             <View style={{ flex: 1 }} />
-            <View accessible accessibilityLabel={`${link.scan_count} scans, ${SYNC_LABELS[syncStatus(link)]}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <ChartColumn color={colors.textMuted} size={14} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Ver stats de ${link.name}: ${link.scan_count} scans, ${SYNC_LABELS[syncStatus(link)]}`}
+              onPress={onStats}
+              hitSlop={8}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: pressed ? colors.primaryGlow : 'transparent' })}
+            >
+              <ChartColumn color={colors.primary} size={14} />
               <Text style={[{ color: colors.textSecondary, fontSize: fs(12) }, inter('semibold')]}>
                 {link.scan_count} {link.scan_count === 1 ? 'scan' : 'scans'} · {SYNC_LABELS[syncStatus(link)]}
               </Text>
-            </View>
+              <Text style={[{ color: colors.primary, fontSize: fs(12) }, inter('bold')]}>· Ver stats</Text>
+            </Pressable>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Action label="Editar" icon={<Pencil color={colors.primary} size={16} />} onPress={onEdit} />

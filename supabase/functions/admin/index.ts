@@ -1,7 +1,17 @@
 // Autoriza só o admin. A service_role existe apenas neste runtime — nunca no app.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-import { adminToCsv, aggregateAdmin, type AdminOperationRow, type AdminTemplateRow, type AdminUserRow } from '../_shared/aggregate.ts';
+import {
+  adminToCsv,
+  aggregateAdmin,
+  FREE_PLAN_EDGE_INVOCATIONS,
+  invocationUsage,
+  monthStartIso,
+  type AdminOperationRow,
+  type AdminTemplateRow,
+  type AdminUserRow,
+  type InvocationUsage,
+} from '../_shared/aggregate.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -66,7 +76,7 @@ Deno.serve(async (request) => {
     const operations = await listOperations(admin, users);
     const templates = await listTemplates(admin);
     const totalOperations = await countOperations(admin);
-    const overview = aggregateAdmin({ users, operations, templates, totalOperations });
+    const overview = { ...aggregateAdmin({ users, operations, templates, totalOperations }), usage: await monthUsage(admin) };
 
     if (action === 'export') {
       return json(200, { csv: adminToCsv(overview) });
@@ -134,6 +144,17 @@ async function listTemplates(admin: ReturnType<typeof createClient>): Promise<Ad
     type: String(row.type ?? ''),
     useCount: Number(row.use_count ?? 0),
   }));
+}
+
+/** Scans do mês contados no banco (count exato, sem trazer linhas). null = tabela ainda não existe. */
+async function monthUsage(admin: ReturnType<typeof createClient>): Promise<InvocationUsage | null> {
+  const now = Date.now();
+  const { count, error } = await admin.from('scan_logs').select('id', { count: 'exact', head: true }).gte('scanned_at', monthStartIso(now));
+  if (error) {
+    return null;
+  }
+  const limit = Number(Deno.env.get('EDGE_INVOCATIONS_LIMIT') ?? FREE_PLAN_EDGE_INVOCATIONS);
+  return invocationUsage(count ?? 0, Number.isFinite(limit) && limit > 0 ? limit : FREE_PLAN_EDGE_INVOCATIONS, now);
 }
 
 async function countOperations(admin: ReturnType<typeof createClient>): Promise<number> {

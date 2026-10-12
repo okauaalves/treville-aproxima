@@ -32,9 +32,45 @@ export type AdminOverview = {
   operationsByType: { contentType: string; count: number }[];
   recentOperations: AdminOperationRow[];
   topTemplates: AdminTemplateRow[];
+  usage?: InvocationUsage | null;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Cota mensal de invocações de Edge Functions no plano Free do Supabase: 500.000.
+ * Fonte: https://supabase.com/docs/guides/functions/pricing (consultado em 11/10/2026).
+ * Cada scan é uma invocação da função `redirect`; a página de perfil soma mais uma (`?format=json`).
+ */
+export const FREE_PLAN_EDGE_INVOCATIONS = 500_000;
+export const USAGE_WARNING_PERCENT = 70;
+
+export type InvocationUsage = {
+  scansThisMonth: number;
+  limit: number;
+  percent: number;
+  warning: boolean;
+  monthStart: string;
+};
+
+/** Início do mês corrente em UTC (o ciclo do Supabase também é mensal). */
+export function monthStartIso(now: number = Date.now()): string {
+  const date = new Date(now);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString();
+}
+
+export function invocationUsage(scansThisMonth: number, limit: number = FREE_PLAN_EDGE_INVOCATIONS, now: number = Date.now()): InvocationUsage {
+  const scans = Math.max(0, Math.floor(Number.isFinite(scansThisMonth) ? scansThisMonth : 0));
+  const safeLimit = limit > 0 ? limit : FREE_PLAN_EDGE_INVOCATIONS;
+  const ratio = (scans / safeLimit) * 100;
+  return {
+    scansThisMonth: scans,
+    limit: safeLimit,
+    percent: Math.round(ratio * 10) / 10,
+    warning: ratio > USAGE_WARNING_PERCENT,
+    monthStart: monthStartIso(now),
+  };
+}
 
 export function aggregateAdmin(input: {
   users: AdminUserRow[];

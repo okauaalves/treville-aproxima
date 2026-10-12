@@ -25,6 +25,7 @@ type Overview = {
   operationsByType: { contentType: string; count: number }[];
   recentOperations: { id: string; email: string; contentType: string; createdAt: string; status: string }[];
   topTemplates: { id: string; name: string; useCount: number }[];
+  usage?: { scansThisMonth: number; limit: number; percent: number; warning: boolean; monthStart: string } | null;
 };
 
 const DEPLOY_HINT = 'Função admin não implantada. Rode: npx supabase functions deploy admin && npx supabase secrets set ADMIN_EMAIL=previaemailofc@gmail.com';
@@ -150,6 +151,7 @@ export default function AdminScreen() {
               <Metric label="Operações" value={data.totalOperations} />
               <Metric label="Templates" value={data.totalTemplates} />
             </View>
+            <UsageCard usage={data.usage ?? null} />
             <Card>
               <Text style={[{ color: colors.textPrimary, marginBottom: 8 }, inter('bold')]}>Usuários</Text>
               {data.users.length === 0 ? <Text style={{ color: colors.textSecondary }}>Nenhum usuário sincronizado.</Text> : null}
@@ -204,6 +206,43 @@ export default function AdminScreen() {
         <PrimaryButton label="Apagar" tone="danger" fullWidth onPress={() => void cleanup()} />
       </Modal>
     </Screen>
+  );
+}
+
+/** Scans do mês (contados no servidor) contra a cota de invocações do plano. Aviso acima de 70%. */
+function UsageCard({ usage }: { usage: Overview['usage'] }) {
+  const { colors, fs } = useTheme();
+  if (!usage) {
+    return (
+      <Card>
+        <Text style={[{ color: colors.textPrimary, marginBottom: 4 }, inter('bold')]}>Uso do mês</Text>
+        <Text style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>Sem dados de scans ainda (tabela de plaquinhas não aplicada ou função admin antiga).</Text>
+      </Card>
+    );
+  }
+  const width = `${Math.min(100, Math.max(0, usage.percent))}%` as const;
+  const barColor = usage.warning ? colors.warning : colors.primary;
+  return (
+    <Card>
+      <View testID="admin-uso-mes" accessible accessibilityLabel={`Uso do mês: ${usage.scansThisMonth} scans, ${usage.percent}% de ${usage.limit} invocações`}>
+        <Text style={[{ color: colors.textPrimary, marginBottom: 4 }, inter('bold')]}>Uso do mês</Text>
+        <Text style={[{ color: colors.textPrimary, fontSize: fs(26) }, inter('extrabold')]}>{usage.scansThisMonth.toLocaleString('pt-BR')} scans</Text>
+        <Text style={[{ color: colors.textSecondary, fontSize: fs(13), marginTop: 2 }, inter('medium')]}>
+          {usage.percent.toLocaleString('pt-BR')}% de {usage.limit.toLocaleString('pt-BR')} invocações/mês (plano Free do Supabase)
+        </Text>
+        <View style={{ height: 10, borderRadius: 6, backgroundColor: colors.backgroundSecondary, marginTop: 10 }}>
+          <View style={{ width, height: 10, borderRadius: 6, backgroundColor: barColor }} />
+        </View>
+        {usage.warning ? (
+          <Text accessibilityRole="alert" style={[{ color: colors.warning, fontSize: fs(13), marginTop: 10 }, inter('bold')]}>
+            Acima de 70% da cota. Considere o plano Pro ou reduzir scans repetidos.
+          </Text>
+        ) : null}
+        <Text style={[{ color: colors.textMuted, fontSize: fs(11), marginTop: 8 }, inter('regular')]}>
+          Cada scan é uma invocação da função redirect; a página de perfil usa mais uma. Fonte da cota: supabase.com/docs/guides/functions/pricing
+        </Text>
+      </View>
+    </Card>
   );
 }
 

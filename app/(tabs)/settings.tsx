@@ -21,7 +21,7 @@ import { isAdminUser } from '@/lib/adminAccess';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { ProfileAvatar } from '@/components/perfil/ProfileIcons';
 import { getProfile } from '@/lib/perfil';
-import { getLinkUrl, getPlaquinhas, plaquinhasAvailable } from '@/lib/plaquinhas';
+import { findProfilePlaquinha, getProfilePageUrl, plaquinhasAvailable } from '@/lib/plaquinhas';
 import { useToastStore } from '@/stores/toastStore';
 import { DEFAULT_THEME_COLOR } from '@/supabase/functions/_shared/profilePage';
 import { useAuthStore } from '@/stores/authStore';
@@ -220,13 +220,12 @@ function MeuPerfilSection() {
       return;
     }
     try {
-      const links = await getPlaquinhas(user.id);
-      const withProfile = links.find((link) => link.profile_enabled && link.is_active);
+      const withProfile = await findProfilePlaquinha();
       if (!withProfile) {
         useToastStore.getState().show('Nenhuma plaquinha está com a página de perfil ativa. Ative em Plaquinhas, no botão Perfil do card.', 'info');
         return;
       }
-      await Linking.openURL(getLinkUrl(withProfile.id));
+      await Linking.openURL(getProfilePageUrl(withProfile.id));
     } catch (failure) {
       useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível abrir sua página.', 'error');
     }

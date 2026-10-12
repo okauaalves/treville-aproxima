@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 import { CloudOff, Plus, QrCode } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
@@ -16,7 +16,7 @@ import { ErrorState } from '@/components/ui/states';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { push, replace } from '@/lib/navigation';
 import { gravarPlaquinhaNaTag } from '@/lib/plaquinhaNfc';
-import { getPlaquinhas, plaquinhasAvailable, togglePlaquinha, type RedirectLink } from '@/lib/plaquinhas';
+import { getPlaquinhas, hasMorePages, mergePage, plaquinhasAvailable, PLAQUINHAS_PAGE_SIZE, togglePlaquinha, type RedirectLink } from '@/lib/plaquinhas';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -38,13 +38,18 @@ export default function PlaquinhasScreen() {
   const { isTabletUp, isBigTablet, horizontalPadding } = useBreakpoint();
   const available = plaquinhasAvailable() && !!user;
   const [links, setLinks] = useState<RedirectLink[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<RedirectLink | null>(null);
+  const nextPage = useRef(1);
+  const fetchingMore = useRef(false);
   const cols = isBigTablet ? 2 : 1;
   const padding = isTabletUp ? 32 : horizontalPadding;
 
+  /** Recarrega a primeira página (foco, criação, tentar de novo). */
   const load = useCallback(async () => {
     if (!available || !user) {
       setLoading(false);
@@ -52,13 +57,35 @@ export default function PlaquinhasScreen() {
     }
     setError(null);
     try {
-      setLinks(await getPlaquinhas(user.id));
+      const first = await getPlaquinhas(0);
+      setLinks(first.items);
+      setTotal(first.total);
+      nextPage.current = 1;
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Não foi possível carregar as plaquinhas.');
     } finally {
       setLoading(false);
     }
   }, [available, user]);
+
+  async function loadMore() {
+    if (fetchingMore.current || loading || !hasMorePages(links.length, total)) {
+      return;
+    }
+    fetchingMore.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await getPlaquinhas(nextPage.current);
+      setLinks((current) => mergePage(current, page.items));
+      setTotal(page.total);
+      nextPage.current += 1;
+    } catch (failure) {
+      useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível carregar mais plaquinhas.', 'error');
+    } finally {
+      fetchingMore.current = false;
+      setLoadingMore(false);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -153,16 +180,31 @@ export default function PlaquinhasScreen() {
           keyExtractor={(item) => item?.id ?? 'filler'}
           columnWrapperStyle={cols > 1 ? { gap: 12 } : undefined}
           contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: 24 }}
+          onEndReached={() => void loadMore()}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={
+            loadingMore ? (
+              <View testID="plaquinhas-loading-more" accessibilityLabel="Carregando mais plaquinhas" style={{ gap: 12 }}>
+                <Skeleton height={150} />
+                {cols > 1 ? null : <Skeleton height={150} />}
+              </View>
+            ) : total !== null && links.length > PLAQUINHAS_PAGE_SIZE && !hasMorePages(links.length, total) ? (
+              <Text style={[{ color: colors.textMuted, fontSize: fs(12), textAlign: 'center', paddingVertical: 12 }, inter('medium')]}>
+                {total} {total === 1 ? 'plaquinha' : 'plaquinhas'}
+              </Text>
+            ) : null
+          }
           renderItem={({ item, index }) => !item ? <View style={{ flex: 1 }} importantForAccessibility="no-hide-descendants" /> : (
             <View style={{ flex: 1 }}>
               <PlaquinhaCard
                 link={item}
-                index={index}
+                index={index % PLAQUINHAS_PAGE_SIZE}
                 onEdit={() => setEditing(item)}
                 onQr={() => push(`/plaquinha/qr/${item.id}`)}
                 onWrite={() => void gravarPlaquinhaNaTag(item.id)}
                 onToggle={(next) => void toggle(item, next)}
                 onProfile={() => push(`/perfil/links/${item.id}`)}
+                onStats={() => push(`/plaquinha/stats/${item.id}`)}
               />
             </View>
           )}
@@ -171,15 +213,13 @@ export default function PlaquinhasScreen() {
       {user ? (
         <CriarPlaquinhaModal
           visible={creating}
-          userId={user.id}
           onClose={() => setCreating(false)}
-          onCreated={(id, writeNow) => {
+          onCreated={({ id, writeNow, profile }) => {
             setCreating(false);
             void load();
+            push(profile ? `/perfil/links/${id}` : `/plaquinha/qr/${id}`);
             if (writeNow) {
               void gravarPlaquinhaNaTag(id);
-            } else {
-              push(`/plaquinha/qr/${id}`);
             }
           }}
         />

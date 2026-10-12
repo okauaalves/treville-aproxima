@@ -115,7 +115,7 @@ function luminance(hex: string): number {
 /** `preview`: links abrem fora (target _blank) para o iframe/WebView do app. */
 export function renderProfilePage(data: ProfilePageData, options: { preview?: boolean } = {}): string {
   const color = isSafeColor(data.themeColor) ? data.themeColor : DEFAULT_THEME_COLOR;
-  const accent = luminance(color) < 0.12 ? '#93C5FD' : color;
+  const accent = luminance(color) < 0.3 ? '#93C5FD' : color;
   const name = escapeHtml(data.name);
   const initial = escapeHtml(Array.from(data.name.trim())[0]?.toUpperCase() ?? 'T');
   const target = options.preview ? ' target="_blank"' : '';

@@ -73,6 +73,7 @@ function RootNavigator() {
           <Stack.Screen name="automation/index" />
           <Stack.Screen name="template/[id]" />
           <Stack.Screen name="plaquinha/qr/[id]" />
+          <Stack.Screen name="plaquinha/stats/[id]" />
           <Stack.Screen name="perfil/editar" />
           <Stack.Screen name="perfil/links/[plaquinhaId]" />
           <Stack.Screen name="(admin)" />

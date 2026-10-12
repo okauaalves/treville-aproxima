@@ -1,5 +1,6 @@
 import { checkDestinationUrl, type DestinationCheck } from '@/supabase/functions/_shared/destination';
 import { cleanPhone, emailUri, mapsUrl, phoneUri, smsUri, whatsAppUrl } from '@/core/nfc/uriBuilders';
+import { sanitizeUrl, validateEmail, validatePhone } from '@/core/validation/securityValidator';
 
 export { checkDestinationUrl };
 export type { DestinationCheck };
@@ -8,8 +9,15 @@ export const LINK_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const LINK_ID_LENGTH = 6;
 export const FALLBACK_REDIRECT_BASE = 'https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect';
 export const PLAQUINHA_NAME_MAX = 40;
+export const PLAQUINHAS_PAGE_SIZE = 20;
+/** Página pública do perfil (EAS Hosting). `EXPO_PUBLIC_PROFILE_PAGE_URL` sobrescreve. */
+export const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
 
-export type DestinationType = 'url' | 'whatsapp' | 'instagram' | 'phone' | 'sms' | 'email' | 'location';
+/** 'menu' = link de cardápio; 'profile' = Perfil completo (mini página com vários links). */
+export type DestinationType = 'url' | 'whatsapp' | 'instagram' | 'phone' | 'sms' | 'email' | 'location' | 'menu' | 'profile';
+
+/** Ordem do grid do passo 2 da criação. */
+export const CREATE_DESTINATION_TYPES: DestinationType[] = ['whatsapp', 'instagram', 'url', 'phone', 'email', 'menu', 'location', 'profile'];
 
 /** 'nfc_outdated' fica reservado: a URL curta nunca muda, então hoje nunca é calculado. */
 export type SyncStatus = 'qr_nfc' | 'qr_only' | 'nfc_outdated';
@@ -68,7 +76,18 @@ export const DESTINATION_LABELS: Record<DestinationType, string> = {
   sms: 'SMS',
   email: 'E-mail',
   location: 'Localização',
+  menu: 'Cardápio',
+  profile: 'Perfil completo',
 };
+
+export function resolveProfilePageBase(value: string | null | undefined): string {
+  const base = (value ?? '').trim().replace(/\/+$/, '');
+  return /^https:\/\/[a-z0-9.-]+(\/[A-Za-z0-9/_-]*)?$/i.test(base) ? base : DEFAULT_PROFILE_PAGE_BASE;
+}
+
+export function profilePageUrl(base: string, id: string): string {
+  return `${base.replace(/\/+$/, '')}/${encodeURIComponent(id)}`;
+}
 
 /** 32 símbolos: byte % 32 não tem viés (256 é múltiplo de 32). */
 export function generateLinkId(randomBytes: (count: number) => Uint8Array, length = LINK_ID_LENGTH): string {
@@ -125,24 +144,29 @@ function instagramHandle(value: string): string {
 export function buildDestination(form: DestinationForm): DestinationCheck {
   switch (form.type) {
     case 'url':
+    case 'menu': {
       if (!form.url.trim()) {
-        return { ok: false, error: 'Informe o link.' };
+        return { ok: false, error: form.type === 'menu' ? 'Informe o link do cardápio.' : 'Informe o link.' };
       }
-      return checkDestinationUrl(withScheme(form.url));
+      const check = sanitizeUrl(withScheme(form.url));
+      return check.ok ? { ok: true, url: check.url } : check;
+    }
     case 'whatsapp':
     case 'phone':
     case 'sms': {
-      if (cleanPhone(form.phone).length < 10) {
+      if (!validatePhone(form.phone).ok || cleanPhone(form.phone).length < 10) {
         return { ok: false, error: 'Informe um número com DDD.' };
       }
       const url = form.type === 'whatsapp' ? whatsAppUrl(form.phone, form.message.trim() || undefined) : form.type === 'sms' ? smsUri(form.phone, form.message.trim() || undefined) : phoneUri(form.phone, true);
       return checkDestinationUrl(url);
     }
-    case 'email':
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        return { ok: false, error: 'Informe um e-mail válido.' };
+    case 'email': {
+      const email = validateEmail(form.email);
+      if (!email.ok) {
+        return email;
       }
-      return checkDestinationUrl(emailUri(form.email, form.subject.trim() || undefined));
+      return checkDestinationUrl(emailUri(email.email, form.subject.trim() || undefined));
+    }
     case 'instagram': {
       const handle = instagramHandle(form.instagram);
       if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) {
@@ -178,6 +202,8 @@ export function parseDestination(url: string, type: string): DestinationForm {
         return { ...form, instagram: parsed.pathname.replace(/\//g, '') };
       case 'location':
         return { ...form, location: parsed.searchParams.get('q') ?? '' };
+      case 'menu':
+        return { ...form, url };
       default:
         return { ...form, type: 'url', url };
     }
@@ -204,6 +230,8 @@ export interface ScanDay {
   key: string;
   label: string;
   count: number;
+  qr: number;
+  nfc: number;
 }
 
 export interface ScanStats {
@@ -227,7 +255,7 @@ export function aggregateScans(logs: ScanLog[], now: Date = new Date()): ScanSta
   const days: ScanDay[] = [];
   for (let offset = 6; offset >= 0; offset -= 1) {
     const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
-    days.push({ key: dayKey(date), label: WEEKDAYS[date.getDay()] ?? '', count: 0 });
+    days.push({ key: dayKey(date), label: WEEKDAYS[date.getDay()] ?? '', count: 0, qr: 0, nfc: 0 });
   }
   const index = new Map(days.map((day, position) => [day.key, position]));
   let qr = 0;
@@ -244,8 +272,47 @@ export function aggregateScans(logs: ScanLog[], now: Date = new Date()): ScanSta
     }
     const position = index.get(dayKey(scanned));
     if (position !== undefined) {
-      days[position]!.count += 1;
+      const day = days[position]!;
+      day.count += 1;
+      if (log.scan_type === 'nfc') {
+        day.nfc += 1;
+      } else {
+        day.qr += 1;
+      }
     }
   }
   return { qr, nfc, sample: logs.length, days, maxPerDay: Math.max(0, ...days.map((day) => day.count)) };
+}
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/** "12/10/2026 às 14:05" no fuso do aparelho, sem depender de Intl. */
+export function formatDateTimePtBr(value: string | Date | null | undefined): string {
+  if (!value) {
+    return 'Nunca';
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Nunca';
+  }
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} às ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export const SCAN_TYPE_LABELS: Record<'qr' | 'nfc', string> = { qr: 'QR Code', nfc: 'Tag NFC' };
+
+/** Página (0-based) para o `.range()` do Supabase; `hasMore` usa o total exato. */
+export function pageRange(page: number, limit: number = PLAQUINHAS_PAGE_SIZE): { from: number; to: number } {
+  const safePage = Math.max(0, Math.floor(page));
+  const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  return { from: safePage * safeLimit, to: safePage * safeLimit + safeLimit - 1 };
+}
+
+export function hasMorePages(loaded: number, total: number | null): boolean {
+  return total !== null && loaded < total;
+}
+
+/** Junta páginas sem duplicar (uma plaquinha criada no meio desloca a paginação). */
+export function mergePage<T extends { id: string }>(current: T[], next: T[]): T[] {
+  const seen = new Set(current.map((item) => item.id));
+  return [...current, ...next.filter((item) => !seen.has(item.id))];
 }

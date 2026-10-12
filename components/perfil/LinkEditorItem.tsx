@@ -5,7 +5,8 @@ import { ProfileLinkIcon } from '@/components/perfil/ProfileIcons';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Toggle } from '@/components/ui/Toggle';
-import { presetFor, type ProfileLink } from '@/lib/perfilLogic';
+import { httpWarning } from '@/components/plaquinha/DestinoForm';
+import { normalizeLinkUrl, presetFor, type ProfileLink } from '@/lib/perfilLogic';
 import { LINK_TITLE_MAX } from '@/supabase/functions/_shared/profilePage';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
@@ -48,6 +49,7 @@ export function LinkEditorItem({
   const { colors, fs } = useTheme();
   const preset = presetFor(link.icon);
   const label = link.title.trim() || preset.label;
+  const warning = link.url.trim() ? httpWarning(normalizeLinkUrl(link.icon, link.url)) : null;
   return (
     <Card padding={14} style={{ marginBottom: 12, opacity: link.is_active ? 1 : 0.7 }}>
       <View testID="profile-link-item" style={{ gap: 10 }}>
@@ -72,6 +74,11 @@ export function LinkEditorItem({
           error={error}
           containerStyle={{ marginBottom: 0 }}
         />
+        {!error && warning ? (
+          <Text accessibilityRole="alert" style={[{ color: colors.warning, fontSize: fs(12), marginTop: -4 }, inter('medium')]}>
+            {warning}
+          </Text>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <SmallButton label={`Subir ${label}`} disabled={index === 0} onPress={() => onMove(-1)}>
             <ArrowUp color={colors.primary} size={18} />

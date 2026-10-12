@@ -1,4 +1,4 @@
-import { checkDestinationUrl } from '@/supabase/functions/_shared/destination';
+import { sanitizeForStorage, sanitizeText, sanitizeUrl } from '@/core/validation/securityValidator';
 import {
   BIO_MAX,
   DEFAULT_THEME_COLOR,
@@ -102,7 +102,7 @@ export function validateProfileLinks(links: ProfileLink[]): LinkCheck {
   }
   const result: ProfileLink[] = [];
   for (const [index, link] of links.entries()) {
-    const title = link.title.trim();
+    const title = sanitizeText(link.title);
     if (!title) {
       return { ok: false, index, error: 'Dê um título ao link.' };
     }
@@ -110,7 +110,7 @@ export function validateProfileLinks(links: ProfileLink[]): LinkCheck {
       return { ok: false, index, error: `Título com no máximo ${LINK_TITLE_MAX} caracteres.` };
     }
     const icon = isProfileIcon(link.icon) ? link.icon : 'link';
-    const check = checkDestinationUrl(normalizeLinkUrl(icon, link.url));
+    const check = sanitizeUrl(normalizeLinkUrl(icon, sanitizeText(link.url)));
     if (!check.ok) {
       return { ok: false, index, error: check.error };
     }
@@ -124,8 +124,8 @@ export type ProfileFormCheck =
   | { ok: false; error: string };
 
 export function validateProfileForm(input: { displayName: string; bio: string; themeColor: string }): ProfileFormCheck {
-  const name = input.displayName.trim();
-  const bio = input.bio.trim();
+  const name = sanitizeText(input.displayName);
+  const bio = sanitizeForStorage(input.bio);
   if (name.length > DISPLAY_NAME_MAX) {
     return { ok: false, error: `Nome com no máximo ${DISPLAY_NAME_MAX} caracteres.` };
   }

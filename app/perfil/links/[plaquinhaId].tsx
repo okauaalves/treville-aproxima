@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
 import { Toggle } from '@/components/ui/Toggle';
 import { getProfile, getProfileLinks, LINK_PRESETS, moveItem, normalizeLinkUrl, saveProfileLinks, toggleProfilePage, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfil';
-import { getLinkUrl, getPlaquinha, plaquinhasAvailable, type RedirectLink } from '@/lib/plaquinhas';
+import { getLinkUrl, getPlaquinha, plaquinhasAvailable, syncProfileFallback, type RedirectLink } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { PROFILE_LINKS_MAX, renderProfilePage, sanitizeProfile } from '@/supabase/functions/_shared/profilePage';
@@ -118,6 +118,9 @@ export default function ProfileLinksScreen() {
       const saved = await saveProfileLinks(link.id, items);
       setItems(withKeys(saved));
       setDirty(false);
+      if (link.destination_type === 'profile') {
+        await syncProfileFallback(link.id, saved).catch(() => undefined);
+      }
       useToastStore.getState().show('Links salvos.', 'success');
     } catch (failure) {
       useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível salvar os links.', 'error');
