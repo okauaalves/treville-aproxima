@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Text, View } from 'react-native';
+import { BackHandler, ScrollView, Text, View } from 'react-native';
 import { CircleCheck } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -9,7 +10,9 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
 import { useNfc } from '@/hooks/useNfc';
 import { replace } from '@/lib/navigation';
+import { markNfcSynced } from '@/lib/plaquinhas';
 import { useNfcStore } from '@/stores/nfcStore';
+import { useToastStore } from '@/stores/toastStore';
 import { useTheme } from '@/theme/ThemeContext';
 
 export default function ProgressScreen() {
@@ -17,6 +20,9 @@ export default function ProgressScreen() {
   const { startWrite, cancelOperation, simulateTag, simulationAvailable, writeSteps, isScanning } = useNfc();
   const payload = useNfcStore((state) => state.pendingPayload);
   const lastError = useNfcStore((state) => state.lastError);
+  const params = useLocalSearchParams<{ plaquinha?: string | string[] }>();
+  const plaquinha = (Array.isArray(params.plaquinha) ? params.plaquinha[0] : params.plaquinha) ?? '';
+  const backTo = plaquinha ? `/plaquinha/qr/${encodeURIComponent(plaquinha)}` : null;
   const [done, setDone] = useState(false);
   const [failed, setFailed] = useState(false);
   const startRef = useRef(startWrite);
@@ -43,7 +49,15 @@ export default function ProgressScreen() {
           return;
         }
         if (result.success) {
-          setDone(true);
+          // writeFlow só devolve success depois de reler a tag e comparar o conteúdo.
+          if (plaquinha) {
+            await markNfcSynced(plaquinha)
+              .then(() => useToastStore.getState().show('Tag gravada e verificada. Plaquinha com QR + NFC.', 'success'))
+              .catch((error: unknown) => useToastStore.getState().show(error instanceof Error ? error.message : 'Não foi possível salvar o status.', 'warning'));
+          }
+          if (alive) {
+            setDone(true);
+          }
         } else {
           setFailed(true);
         }
@@ -59,7 +73,7 @@ export default function ProgressScreen() {
         void cancel();
       }
     };
-  }, [payload]);
+  }, [payload, plaquinha]);
 
   if (!payload) {
     return (
@@ -76,7 +90,7 @@ export default function ProgressScreen() {
   return (
     <Screen>
       <AppHeader title="Gravando tag" back={!isScanning} />
-      <View style={{ padding: 20, gap: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }}>
         <WriteProgress steps={writeSteps} />
         {done ? (
           <Card variant="success" padding={18} style={{ alignItems: 'center' }}>
@@ -102,9 +116,9 @@ export default function ProgressScreen() {
           </Card>
         ) : null}
         {simulationAvailable && simulateTag && isScanning && !done ? <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" onPress={() => simulateTag('default')} /> : null}
-        {done ? <PrimaryButton label="OK" fullWidth onPress={() => replace('/(tabs)/history')} /> : null}
-        {failed ? <PrimaryButton label="Tentar de novo" variant="secondary" onPress={() => replace('/write/configure')} /> : null}
-      </View>
+        {done ? <PrimaryButton label="OK" fullWidth onPress={() => replace(backTo ?? '/(tabs)/history')} /> : null}
+        {failed ? <PrimaryButton label={backTo ? 'Voltar para a plaquinha' : 'Tentar de novo'} variant="secondary" onPress={() => replace(backTo ?? '/write/configure')} /> : null}
+      </ScrollView>
     </Screen>
   );
 }

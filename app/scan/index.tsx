@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
@@ -11,6 +11,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
 import { setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useNfc } from '@/hooks/useNfc';
 import { useTagDispatch } from '@/hooks/useTagDispatch';
 import { replace } from '@/lib/navigation';
@@ -25,12 +26,14 @@ function readParam(value: string | string[] | undefined): string {
 /** Modo leitura (intent=read) e identificação antes de gravar (intent=write). As duas mantêm o reader mode ligado enquanto focadas. */
 export default function ScanScreen() {
   const { colors, fs } = useTheme();
-  const params = useLocalSearchParams<{ intent?: string; contentType?: string; prefill?: string; test?: string }>();
+  const params = useLocalSearchParams<{ intent?: string; contentType?: string; prefill?: string; plaquinha?: string; test?: string }>();
   const intent = readParam(params.intent) === 'write' ? 'write' : 'read';
   const contentType = readParam(params.contentType);
   const prefill = readParam(params.prefill);
+  const plaquinha = readParam(params.plaquinha);
   const testMode = __DEV__ && readParam(params.test) === '1';
   const nfc = useNfc();
+  const short = useBreakpoint().height < 500;
   const [tag, setTag] = useState<NfcTag | null>(null);
   const [records, setRecords] = useState<ParsedRecord[]>([]);
 
@@ -49,6 +52,10 @@ export default function ScanScreen() {
   const current = records[0];
 
   function continueFlow() {
+    if (plaquinha) {
+      replace(`/write/progress?plaquinha=${encodeURIComponent(plaquinha)}`);
+      return;
+    }
     if (contentType) {
       const query = prefill ? `&prefill=${encodeURIComponent(prefill)}` : '';
       replace(`/write/configure?contentType=${contentType}${query}`);
@@ -60,10 +67,10 @@ export default function ScanScreen() {
   return (
     <Screen>
       <AppHeader title={intent === 'write' ? 'Identificar tag' : 'Modo leitura'} back />
-      <View style={{ flex: 1, paddingHorizontal: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
         <ExpoGoBanner />
-        <View style={{ alignItems: 'center', marginTop: intent === 'read' ? 24 : 0 }}>
-          <NfcPulse size={intent === 'read' ? 220 : 132} active={!detected} />
+        <View style={{ alignItems: 'center', marginTop: intent === 'read' && !short ? 24 : 0 }}>
+          <NfcPulse size={intent === 'read' ? (short ? 150 : 220) : 132} active={!detected} />
           <Text style={[{ color: colors.textPrimary, fontSize: fs(22), marginTop: 12, textAlign: 'center' }, inter('extrabold')]}>
             {detected ? 'TAG DETECTADA' : intent === 'read' ? 'Pronto para ler' : 'AGUARDANDO TAG'}
           </Text>
@@ -81,7 +88,7 @@ export default function ScanScreen() {
               <Text style={{ color: readOnly ? colors.warning : colors.success, marginTop: 6, fontWeight: '700' }}>{readOnly ? 'Somente leitura' : 'Gravável'}</Text>
               <Text style={{ color: colors.textSecondary, marginTop: 6 }}>{current ? `Conteúdo atual: ${current.displayTitle}` : 'Sem conteúdo NDEF reconhecido.'}</Text>
             </Card>
-            <PrimaryButton label={contentType ? 'Configurar' : 'Escolher tipo de conteúdo'} fullWidth onPress={continueFlow} />
+            <PrimaryButton label={plaquinha ? 'Gravar plaquinha' : contentType ? 'Configurar' : 'Escolher tipo de conteúdo'} fullWidth onPress={continueFlow} />
           </View>
         ) : null}
         {testMode && !detected ? (
@@ -90,7 +97,7 @@ export default function ScanScreen() {
             <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" fullWidth onPress={() => nfc.simulateTag?.('default')} />
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

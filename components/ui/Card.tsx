@@ -64,7 +64,7 @@ export function Card({
       onLongPress={onLongPress}
       onPressIn={pressIn}
       onPressOut={pressOut}
-      style={animated}
+      style={[animated, style?.flex ? { flex: style.flex } : null]}
     >
       {inner}
     </AnimatedPressable>

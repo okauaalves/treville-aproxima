@@ -6,7 +6,7 @@
       "@/*": ["./*"]
     }
   },
-  "exclude": ["supabase/functions/admin"],
+  "exclude": ["supabase/functions/admin", "supabase/functions/redirect"],
   "include": [
     "**/*.ts",
     "**/*.tsx",

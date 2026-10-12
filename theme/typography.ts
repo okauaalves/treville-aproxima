@@ -44,6 +44,9 @@ export const typography = {
 
 export type TypographyVariant = keyof typeof typography;
 
+/** A escala acima foi desenhada para base 16; fs() multiplica por baseFont/16 do breakpoint. */
+export const BASE_FONT_SIZE = 16;
+
 export type TextScale = 'A' | 'A+' | 'A++';
 
 export const TEXT_SCALES: Record<TextScale, number> = {

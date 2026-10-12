@@ -9,19 +9,21 @@ import { replace } from '@/lib/navigation';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
-export function AppHeader({ title, back, right }: { title: string; back?: boolean; right?: ReactNode }) {
+/** `inset` alinha o título ao padding horizontal do conteúdo da tela. */
+export function AppHeader({ title, back, right, inset }: { title: string; back?: boolean; right?: ReactNode; inset?: number }) {
   const { colors, fs } = useTheme();
   const insets = useSafeAreaInsets();
+  const aligned = inset !== undefined && !back;
   return (
-    <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 8, paddingBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
+    <View style={{ paddingTop: insets.top + 8, paddingHorizontal: aligned ? inset : 8, paddingBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
       {back ? (
         <IconButton accessibilityLabel="Voltar" onPress={() => (router.canGoBack() ? router.back() : replace('/(tabs)'))}>
           <ChevronLeft color={colors.textPrimary} size={24} strokeWidth={2} />
         </IconButton>
-      ) : (
+      ) : aligned ? null : (
         <View style={{ width: 12 }} />
       )}
-      <Text style={[{ color: colors.textPrimary, fontSize: fs(18), flex: 1 }, inter('bold')]}>{title}</Text>
+      <Text accessibilityRole="header" style={[{ color: colors.textPrimary, fontSize: fs(18), flex: 1 }, inter('bold')]}>{title}</Text>
       {right}
     </View>
   );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Platform, Text, View } from 'react-native';
+import { Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Nfc } from 'lucide-react-native';
 
@@ -46,9 +46,11 @@ const COPY: Record<NfcBlockReason, { title: string; message: string; solution: s
   },
 };
 
+const FORWARDED = ['contentType', 'prefill', 'plaquinha'] as const;
+
 export default function NfcUnavailableScreen() {
   const { colors, fs } = useTheme();
-  const params = useLocalSearchParams<{ intent?: string; reason?: string; contentType?: string; prefill?: string; test?: string }>();
+  const params = useLocalSearchParams<{ intent?: string; reason?: string; contentType?: string; prefill?: string; plaquinha?: string; test?: string }>();
   const reason = (readParam(params.reason) || 'unsupported') as NfcBlockReason;
   const copy = COPY[reason] ?? COPY.unsupported;
   const intent = readParam(params.intent) === 'write' ? 'write' : 'read';
@@ -63,16 +65,18 @@ export default function NfcUnavailableScreen() {
     if (!assessment.ready) {
       return;
     }
-    const next = new URLSearchParams({ intent });
-    const contentType = readParam(params.contentType);
-    const prefill = readParam(params.prefill);
-    if (contentType) {
-      next.set('contentType', contentType);
+    replace(`/scan?${forward({ intent })}`);
+  }
+
+  function forward(base: Record<string, string>): string {
+    const next = new URLSearchParams(base);
+    for (const key of FORWARDED) {
+      const value = readParam(params[key]);
+      if (value) {
+        next.set(key, value);
+      }
     }
-    if (prefill) {
-      next.set('prefill', prefill);
-    }
-    replace(`/scan?${next.toString()}`);
+    return next.toString();
   }
 
   async function openSettings() {
@@ -92,22 +96,13 @@ export default function NfcUnavailableScreen() {
   }
 
   function testMode() {
-    const next = new URLSearchParams({ intent, test: '1' });
-    const contentType = readParam(params.contentType);
-    const prefill = readParam(params.prefill);
-    if (contentType) {
-      next.set('contentType', contentType);
-    }
-    if (prefill) {
-      next.set('prefill', prefill);
-    }
-    replace(`/scan?${next.toString()}`);
+    replace(`/scan?${forward({ intent, test: '1' })}`);
   }
 
   return (
     <Screen>
       <AppHeader title="NFC indisponível" back />
-      <View style={{ flex: 1, padding: 24, gap: 12 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, padding: 24, gap: 12 }}>
         <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }}>
           <Nfc color={colors.primary} size={32} />
         </View>
@@ -123,7 +118,7 @@ export default function NfcUnavailableScreen() {
             <PrimaryButton label="Modo de teste (simulação)" variant="secondary" fullWidth onPress={testMode} />
           </>
         ) : null}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

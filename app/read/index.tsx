@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { FileText } from 'lucide-react-native';
 
 import { Screen } from '@/components/layout/Screen';
@@ -92,7 +92,7 @@ export default function ReadingScreen() {
   return (
     <Screen>
       <AppHeader title="Lendo tag..." back />
-      <View style={{ paddingHorizontal: 20, paddingTop: 8, flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}>
         <ExpoGoBanner />
         <StepProgress steps={steps} />
         {failed ? <Text style={[{ color: colors.error, marginTop: 12 }, inter('medium')]}>{failed}</Text> : null}
@@ -105,7 +105,7 @@ export default function ReadingScreen() {
             </View>
           </View>
         </Card>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

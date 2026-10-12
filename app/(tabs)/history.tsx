@@ -9,7 +9,9 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { SegmentedControl } from '@/components/ui/Toggle';
 import { clearOperations, deleteOperation } from '@/core/offline/database';
 import { push } from '@/lib/navigation';
@@ -21,6 +23,7 @@ import { formatWhen } from '@/utils/formatters';
 export default function HistoryScreen() {
   const { colors, fs } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTabletUp, horizontalPadding } = useBreakpoint();
   const operations = useHistoryStore((state) => state.operations);
   const filter = useHistoryStore((state) => state.filter);
   const hasMore = useHistoryStore((state) => state.hasMore);
@@ -45,12 +48,12 @@ export default function HistoryScreen() {
   }
 
   return (
-    <Screen>
-      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 16, flex: 1 }}>
+    <Screen maxWidth={isTabletUp ? CONTENT_WIDTH.history : null}>
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: isTabletUp ? 32 : horizontalPadding, flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-          <Text style={[{ flex: 1, color: colors.textPrimary, fontSize: fs(28) }, inter('extrabold')]}>Histórico</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Limpar histórico" onPress={() => setConfirmClear(true)}>
-            <Text style={{ color: colors.primary, fontWeight: '700' }}>Limpar</Text>
+          <Text accessibilityRole="header" style={[{ flex: 1, color: colors.textPrimary, fontSize: fs(28) }, inter('extrabold')]}>Histórico</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Limpar histórico" onPress={() => setConfirmClear(true)} style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fs(14) }}>Limpar</Text>
           </Pressable>
         </View>
         <SegmentedControl<HistoryFilter>

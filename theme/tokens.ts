@@ -26,7 +26,6 @@ export const sizes = {
   touch: 44,
   button: 56,
   icon: 22,
-  column: 480,
   badge: 40,
 } as const;
 

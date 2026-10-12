@@ -4,6 +4,7 @@ import type { ContentType } from '@/theme/colors';
 
 import { buildCustomCardBody, isCustomCardVCard, parseCustomCard } from '@/core/nfc/customCard';
 import { Ndef } from '@/core/nfc/nfcNative';
+import { cleanPhone, emailUri, mapsUrl, phoneUri, whatsAppUrl } from '@/core/nfc/uriBuilders';
 import type { NfcPayload, ParsedRecord, WifiSecurity } from '@/types/nfc';
 
 const AUTH: Record<WifiSecurity, number[]> = {
@@ -45,17 +46,7 @@ function bytesToString(bytes: number[]): string {
   return Ndef.util.bytesToString(bytes);
 }
 
-/**
- * Números BR sem DDI: 10 dígitos (DDD + 8) ou 11 (DDD + 9) recebem o prefixo 55.
- * Se já começa com 55 e tem 12+ dígitos, permanece.
- */
-export function cleanPhone(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) {
-    return `55${digits}`;
-  }
-  return digits;
-}
+export { cleanPhone };
 
 function recordOf(contentType: ContentType, title: string, value: string, raw: string, data: NfcPayload): ParsedRecord {
   return { contentType, displayTitle: title, displayValue: value, rawValue: raw, data };
@@ -117,26 +108,15 @@ export class NdefEngine {
   }
 
   buildWhatsAppRecord(phone: string, message?: string): NdefRecord {
-    const clean = cleanPhone(phone);
-    const text = message ? `?text=${encodeURIComponent(message)}` : '';
-    return this.buildUrlRecord(`https://wa.me/${clean}${text}`);
+    return this.buildUrlRecord(whatsAppUrl(phone, message));
   }
 
   buildPhoneRecord(phone: string, includeCountryCode = false): NdefRecord {
-    const digits = includeCountryCode ? cleanPhone(phone) : phone.replace(/\D/g, '');
-    return this.buildUrlRecord(`tel:+${digits}`);
+    return this.buildUrlRecord(phoneUri(phone, includeCountryCode));
   }
 
   buildEmailRecord(address: string, subject?: string, body?: string): NdefRecord {
-    const params = new URLSearchParams();
-    if (subject) {
-      params.set('subject', subject);
-    }
-    if (body) {
-      params.set('body', body);
-    }
-    const query = params.toString();
-    return this.buildUrlRecord(`mailto:${address.trim()}${query ? `?${query}` : ''}`);
+    return this.buildUrlRecord(emailUri(address, subject, body));
   }
 
   buildCustomCardRecord(payload: NfcPayload): NdefRecord {
@@ -178,8 +158,7 @@ export class NdefEngine {
       const label = payload.label ? `?q=${encodeURIComponent(payload.label)}` : '';
       return this.buildUrlRecord(`geo:${payload.latitude},${payload.longitude}${label}`);
     }
-    const query = encodeURIComponent(payload.address ?? payload.label ?? '');
-    return this.buildUrlRecord(`https://maps.google.com/?q=${query}`);
+    return this.buildUrlRecord(mapsUrl(payload.address ?? payload.label ?? ''));
   }
 
   parseRecord(record: NdefRecord): ParsedRecord {

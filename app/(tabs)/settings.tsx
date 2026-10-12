@@ -4,7 +4,9 @@ import { ChevronRight, ShieldCheck } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
@@ -40,6 +42,8 @@ const SCALES: TextScale[] = ['A', 'A+', 'A++'];
 export default function SettingsScreen() {
   const { colors, fs, preference, setPreference } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTabletUp, horizontalPadding } = useBreakpoint();
+  const padding = isTabletUp ? 32 : horizontalPadding;
   const language = useSettingsStore((state) => state.language);
   const sound = useSettingsStore((state) => state.soundEnabled);
   const vibration = useSettingsStore((state) => state.vibrationEnabled);
@@ -58,9 +62,9 @@ export default function SettingsScreen() {
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
   return (
-    <Screen>
-      <AppHeader title="Configurações" />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 28) }}>
+    <Screen maxWidth={isTabletUp ? CONTENT_WIDTH.settings : null}>
+      <AppHeader title="Configurações" inset={padding} />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: Math.max(insets.bottom, 28) }}>
         <Section title="Conta">
           <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
           <Row label="Sair" value="" first={false} onPress={() => setConfirmExit(true)} />
@@ -76,8 +80,8 @@ export default function SettingsScreen() {
           <ToggleRow label="Vibração" value={vibration} onChange={(value) => void useSettingsStore.getState().setVibrationEnabled(value)} />
         </Section>
         <Section title="Sobre">
-          <Text style={{ color: colors.textPrimary, fontWeight: '700', paddingHorizontal: 14, paddingTop: 12 }}>{APP_NAME}</Text>
-          <Text style={{ color: colors.textSecondary, paddingHorizontal: 14, paddingTop: 2 }}>{APP_TAGLINE}</Text>
+          <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: fs(14), paddingHorizontal: 14, paddingTop: 12 }}>{APP_NAME}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fs(14), paddingHorizontal: 14, paddingTop: 2 }}>{APP_TAGLINE}</Text>
           <Row label="Versão" value={version} first={false} />
           <Row label="Termos de uso" value="" onPress={() => push('/terms')} first={false} />
         </Section>
@@ -142,19 +146,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   const { colors, fs } = useTheme();
   return (
     <View style={{ marginBottom: 18 }}>
-      <Text style={{ color: colors.textPrimary, fontWeight: '800', fontSize: fs(16), marginBottom: 8 }}>{title}</Text>
+      <Text accessibilityRole="header" style={{ color: colors.textPrimary, fontWeight: '800', fontSize: fs(16), marginBottom: 8 }}>{title}</Text>
       <Card padding={0}>{children}</Card>
     </View>
   );
 }
 
 function Row({ label, value, onPress, first = true, icon }: { label: string; value: string; onPress?: () => void; first?: boolean; icon?: ReactNode }) {
-  const { colors } = useTheme();
+  const { colors, fs } = useTheme();
   const body = (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border, gap: 8 }}>
       {icon}
-      <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600' }}>{label}</Text>
-      {value ? <Text style={{ color: colors.textSecondary, marginRight: 6 }}>{value}</Text> : null}
+      <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600', fontSize: fs(14) }}>{label}</Text>
+      {value ? <Text numberOfLines={1} style={{ color: colors.textSecondary, marginRight: 6, fontSize: fs(14), flexShrink: 1, maxWidth: '55%' }}>{value}</Text> : null}
       {onPress ? <ChevronRight color={colors.textMuted} size={16} /> : null}
     </View>
   );
@@ -169,10 +173,10 @@ function Row({ label, value, onPress, first = true, icon }: { label: string; val
 }
 
 function ToggleRow({ label, value, onChange, first = false }: { label: string; value: boolean; onChange: (value: boolean) => void; first?: boolean }) {
-  const { colors } = useTheme();
+  const { colors, fs } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border }}>
-      <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600', fontSize: fs(14) }}>{label}</Text>
       <Toggle value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );

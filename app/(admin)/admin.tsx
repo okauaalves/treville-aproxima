@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
+import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -130,7 +131,7 @@ export default function AdminScreen() {
   const max = Math.max(1, ...(data?.operationsByType.map((item) => item.count) ?? [1]));
 
   return (
-    <Screen>
+    <Screen maxWidth={CONTENT_WIDTH.admin}>
       <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
         {loading ? (

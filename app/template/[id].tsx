@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
@@ -66,7 +66,7 @@ export default function TemplateDetailScreen() {
   return (
     <Screen>
       <AppHeader title={title} back />
-      <View style={{ padding: 16, gap: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         {type ? <TypeBadge type={type} iconName={item?.icon} tint={item?.color} /> : null}
           <View style={{ flex: 1 }}>
@@ -78,7 +78,7 @@ export default function TemplateDetailScreen() {
         <PrimaryButton label="Editar" variant="secondary" onPress={useTemplate} />
         <PrimaryButton label="Duplicar" variant="secondary" onPress={() => void duplicate()} />
         {item ? <PrimaryButton label="Excluir" tone="danger" onPress={() => void remove()} /> : null}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }

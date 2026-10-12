@@ -20,8 +20,8 @@ import {
   type ThemeColors,
   type ThemePreference,
 } from './colors';
-import { TEXT_SCALES } from './typography';
-import { sizes } from './tokens';
+import { BASE_FONT_SIZE, TEXT_SCALES } from './typography';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useSettingsStore } from '@/stores/settingsStore';
 
 interface ThemeContextValue {
@@ -32,6 +32,9 @@ interface ThemeContextValue {
   navigationTheme: Theme;
   reduceAnimations: boolean;
   textScale: keyof typeof TEXT_SCALES;
+  /** Base tipográfica do breakpoint atual (14/16/17/18). */
+  baseFont: number;
+  /** Tamanho escrito para base 16, escalado pelo breakpoint e pelo "Tamanho do texto". */
   fs: (size: number) => number;
   springOrTiming: (toValue: number) => number;
   setPreference: (preference: ThemePreference) => void;
@@ -93,6 +96,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   );
   const reduceAnimations = storedReduce || systemReduce;
   const textScale = useSettingsStore((state) => state.textScale);
+  const { baseFont } = useBreakpoint();
   const preference = storedTheme;
   const scheme = resolveScheme(preference, colorScheme);
   const colors = colorsForScheme(scheme);
@@ -128,17 +132,18 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
       navigationTheme: buildNavigationTheme(scheme, colors),
       reduceAnimations,
       textScale,
-      fs: (size: number) => Math.round(size * TEXT_SCALES[textScale]),
+      baseFont,
+      fs: (size: number) => Math.round(size * (baseFont / BASE_FONT_SIZE) * TEXT_SCALES[textScale]),
       springOrTiming: (toValue: number) => motion(toValue, reduceAnimations),
       setPreference,
     }),
-    [colors, isDark, preference, reduceAnimations, scheme, setPreference, textScale],
+    [baseFont, colors, isDark, preference, reduceAnimations, scheme, setPreference, textScale],
   );
 
   return (
     <ThemeContext.Provider value={value}>
-      <LinearGradient colors={[colors.backgroundSecondary, colors.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, overflow: 'hidden', alignItems: 'center' }}>
-        <View style={[{ flex: 1, width: '100%', maxWidth: sizes.column, backgroundColor: colors.background }, cssVars]}>
+      <LinearGradient colors={[colors.backgroundSecondary, colors.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, overflow: 'hidden' }}>
+        <View style={[{ flex: 1, width: '100%' }, cssVars]}>
           {children}
         </View>
       </LinearGradient>

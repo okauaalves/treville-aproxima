@@ -44,7 +44,7 @@ export function GlassButton({
   style?: ViewStyle;
   accessibilityLabel?: string;
 }) {
-  const { colors, reduceAnimations } = useTheme();
+  const { colors, fs, reduceAnimations } = useTheme();
   const haptics = useHaptics();
   const [focused, setFocused] = useState(false);
   const scale = useSharedValue(1);
@@ -98,7 +98,7 @@ export function GlassButton({
           gap: 8,
           minHeight: prominent ? 60 : 52,
           paddingVertical: 16,
-          paddingHorizontal: prominent ? 22 : 20,
+          paddingHorizontal: prominent ? 22 : 16,
           borderRadius: radius.button,
           backgroundColor: fill,
           borderWidth: focused ? 2 : resolved === 'neutral' ? 1.5 : 0,
@@ -107,7 +107,7 @@ export function GlassButton({
       >
         {showArrow ? <View style={{ width: 32 }} /> : null}
         {loading ? <ActivityIndicator color={labelColor} /> : icon}
-        <Text style={[{ flex: showArrow ? 1 : undefined, textAlign: 'center', color: labelColor, fontSize: 16 }, inter('semibold')]}>{label}</Text>
+        <Text style={[{ flexShrink: 1, flex: showArrow ? 1 : undefined, textAlign: 'center', color: labelColor, fontSize: fs(16) }, inter('semibold')]}>{label}</Text>
         {showArrow ? (
           <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
             <ArrowRight color={colors.onPrimary} size={16} />
