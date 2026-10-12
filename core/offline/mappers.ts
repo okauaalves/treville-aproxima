@@ -1,6 +1,7 @@
 import { isContentType } from '@/constants/nfcTypes';
+import type { TechnicalSnapshot } from '@/core/nfc/technical';
 import type { ContentType } from '@/theme/colors';
-import type { Operation, OperationKind, OperationStatus } from '@/types/history';
+import type { HistoryFilter, Operation, OperationKind, OperationStatus } from '@/types/history';
 import type { NfcPayload } from '@/types/nfc';
 import type { NfcTemplate } from '@/types/template';
 
@@ -22,6 +23,9 @@ export interface OperationRow {
   display_title: string | null;
   display_value: string | null;
   tag_uid_hash: string | null;
+  /** Colunas da migração 4; linhas antigas (SQLite ou IndexedDB) não têm. */
+  technical?: string | null;
+  payloads?: string | null;
 }
 
 export interface TemplateRow {
@@ -56,8 +60,84 @@ export interface TagRow {
   created_at: string;
 }
 
-const KINDS: OperationKind[] = ['READ', 'WRITE', 'ERASE', 'DIAGNOSE'];
-const STATUSES: OperationStatus[] = ['SUCCESS', 'FAILED'];
+const KINDS: OperationKind[] = ['READ', 'WRITE', 'ERASE', 'DIAGNOSE', 'CLONE', 'LOCK', 'FORMAT'];
+const STATUSES: OperationStatus[] = ['SUCCESS', 'FAILED', 'PARTIAL'];
+
+/** Operações que alteram a tag: entram no filtro "Gravadas". DIAGNOSE só em "Todas". */
+export const WRITE_KINDS: OperationKind[] = ['WRITE', 'ERASE', 'CLONE', 'LOCK', 'FORMAT'];
+
+export const OPERATION_LABELS: Record<OperationKind, string> = {
+  READ: 'Leitura',
+  WRITE: 'Gravação',
+  CLONE: 'Clone',
+  LOCK: 'Lock',
+  ERASE: 'Erase',
+  DIAGNOSE: 'Diagnóstico',
+  FORMAT: 'Formatação',
+};
+
+export const STATUS_LABELS: Record<OperationStatus, string> = {
+  SUCCESS: 'Sucesso',
+  FAILED: 'Falha',
+  PARTIAL: 'Parcial',
+};
+
+export function operationLabel(kind: OperationKind): string {
+  return OPERATION_LABELS[kind];
+}
+
+export function statusLabel(status: OperationStatus): string {
+  return STATUS_LABELS[status];
+}
+
+export function matchesHistoryFilter(filter: HistoryFilter, operation: string): boolean {
+  if (filter === 'read') {
+    return operation === 'READ';
+  }
+  if (filter === 'write') {
+    return WRITE_KINDS.some((kind) => kind === operation);
+  }
+  return true;
+}
+
+/** Gravação com verificação incompleta (integridade entre 1 e 89%) conta como Parcial. */
+export function statusFromIntegrity(passed: boolean, integrityPercent: number): OperationStatus {
+  if (passed) {
+    return 'SUCCESS';
+  }
+  return integrityPercent > 0 ? 'PARTIAL' : 'FAILED';
+}
+
+function parseTechnical(raw: string | null | undefined): TechnicalSnapshot | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== 'object' || (value as { version?: unknown }).version !== 1 || !Array.isArray((value as { records?: unknown }).records)) {
+      return null;
+    }
+    return value as TechnicalSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function parsePayloadList(raw: string | null | undefined): NfcPayload[] | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) {
+      return null;
+    }
+    const list = value.filter((item): item is NfcPayload => Boolean(item) && typeof item === 'object' && isContentType(String((item as { contentType?: unknown }).contentType)));
+    return list.length > 0 ? list : null;
+  } catch {
+    return null;
+  }
+}
 
 function parsePayload(raw: string | null): NfcPayload | null {
   if (!raw) {
@@ -119,6 +199,8 @@ export function mapOperationRow(row: OperationRow): Operation {
     status: statusOf(row.status),
     contentType,
     payload,
+    payloads: parsePayloadList(row.payloads),
+    technical: parseTechnical(row.technical),
     errorMessage: row.error_message,
     integrityPercent: row.integrity_percent,
     durationMs: row.duration_ms,

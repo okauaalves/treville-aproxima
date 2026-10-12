@@ -5,6 +5,8 @@ declare module 'react-native-nfc-manager/ndef-lib' {
     TNF_EMPTY: 0x0;
     TNF_WELL_KNOWN: 0x01;
     TNF_MIME_MEDIA: 0x02;
+    TNF_ABSOLUTE_URI: 0x03;
+    TNF_EXTERNAL_TYPE: 0x04;
     RTD_TEXT: string;
     RTD_URI: string;
     MIME_WFA_WSC: string;

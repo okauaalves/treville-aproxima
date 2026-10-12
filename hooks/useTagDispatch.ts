@@ -38,7 +38,7 @@ export function useTagDispatch(
       let focused = true;
       const deliver = (raw: TagEvent) => {
         const tag = tagAnalyzer.analyze(raw);
-        const records = tag.ndefRecords.map((record) => ndefEngine.parseRecord(record));
+        const records = ndefEngine.parseContent(tag.ndefRecords);
         useNfcStore.getState().setCurrentTag(tag);
         hapticsRef.current.notify(Haptics.NotificationFeedbackType.Success);
         handler.current(tag, records);

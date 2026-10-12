@@ -56,6 +56,14 @@ export function webNfcUnavailableReason(): string {
   return 'NFC não disponível neste dispositivo/navegador.';
 }
 
+function bytesOf(data?: BufferSource): number[] {
+  if (!data) {
+    return [];
+  }
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  return Array.from(bytes);
+}
+
 function textOf(data?: BufferSource): string {
   if (!data) {
     return '';
@@ -74,7 +82,13 @@ function toNdef(records: WebNdefRecord[]): NdefRecord[] {
       return Ndef.textRecord(value, record.lang ?? 'pt') as NdefRecord;
     }
     if (record.recordType === 'mime' && record.mediaType) {
-      return Ndef.record(Ndef.TNF_MIME_MEDIA, record.mediaType, [], Array.from(new TextEncoder().encode(value))) as NdefRecord;
+      return Ndef.record(Ndef.TNF_MIME_MEDIA, record.mediaType, [], bytesOf(record.data)) as NdefRecord;
+    }
+    if (record.recordType === 'empty') {
+      return Ndef.record(Ndef.TNF_EMPTY, '', [], []) as NdefRecord;
+    }
+    if (record.recordType.includes(':')) {
+      return Ndef.record(Ndef.TNF_EXTERNAL_TYPE, record.recordType, [], bytesOf(record.data)) as NdefRecord;
     }
     return Ndef.textRecord(value || record.recordType, 'pt') as NdefRecord;
   });
@@ -90,6 +104,17 @@ function toWeb(bytes: number[]): WebNdefRecord[] {
     if (Ndef.isType(record, Ndef.TNF_WELL_KNOWN, Ndef.RTD_TEXT)) {
       const text = Ndef.text.decodePayload(Uint8Array.from(Array.isArray(record.payload) ? record.payload : []));
       return { recordType: 'text', lang: 'pt', encoding: 'utf-8', data: new TextEncoder().encode(String(text)) };
+    }
+    const raw = Uint8Array.from(Array.isArray(record.payload) ? record.payload : []);
+    const type = typeof record.type === 'string' ? record.type : String.fromCharCode(...(record.type ?? []));
+    if (record.tnf === Ndef.TNF_EMPTY) {
+      return { recordType: 'empty' };
+    }
+    if (record.tnf === Ndef.TNF_MIME_MEDIA && type) {
+      return { recordType: 'mime', mediaType: type, data: raw };
+    }
+    if (record.tnf === Ndef.TNF_EXTERNAL_TYPE && type.includes(':')) {
+      return { recordType: type, data: raw };
     }
     const payload = Array.isArray(record.payload) ? String.fromCharCode(...record.payload) : '';
     return { recordType: 'text', lang: 'pt', data: new TextEncoder().encode(payload) };

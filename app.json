@@ -71,6 +71,7 @@
       "expo-sqlite",
       "react-native-nfc-manager",
       "./plugins/withNfcTechFilter",
+      "./plugins/withTaskerQueries",
       "expo-web-browser",
       "expo-sharing",
       "expo-font",

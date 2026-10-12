@@ -8,6 +8,7 @@ import { nfcManager } from '@/core/nfc/NfcManager';
 import { nfcReader } from '@/core/nfc/NfcReader';
 import { nfcWriter } from '@/core/nfc/NfcWriter';
 import { tagAnalyzer } from '@/core/nfc/TagAnalyzer';
+import { buildTechnicalSnapshot } from '@/core/nfc/technical';
 import { writeFlow } from '@/core/nfc/writeFlow';
 import { saveOperation, saveTag } from '@/core/offline/database';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -52,9 +53,10 @@ export function useNfc() {
       status: 'SUCCESS',
       contentType: records[0]?.contentType ?? null,
       payload: records[0]?.data ?? null,
-      displayTitle: records[0]?.displayTitle ?? tag.type,
-      displayValue: records[0]?.displayValue ?? tag.uid,
+      displayTitle: records[0]?.displayTitle ?? (tag.capabilities.supportsNdef ? 'Tag vazia' : 'Tag RFID'),
+      displayValue: records[0]?.displayValue ?? tag.type,
       integrityPercent: 100,
+      technical: buildTechnicalSnapshot(tag, Platform.OS, nfcManager.isSimulation()),
     });
   }
 
@@ -78,6 +80,7 @@ export function useNfc() {
 
   async function startWrite() {
     const payload = useNfcStore.getState().pendingPayload;
+    const payloads = useNfcStore.getState().pendingPayloads;
     const options = useNfcStore.getState().writeOptions;
     if (!payload) {
       throw new NfcError('VALIDATION_ERROR');
@@ -85,7 +88,7 @@ export function useNfc() {
     useNfcStore.getState().resetWriteSteps();
     useNfcStore.getState().setScanning(true);
     try {
-      const result = await writeFlow(payload, (id, status) => useNfcStore.getState().setWriteStep(id, status), options);
+      const result = await writeFlow(payloads && payloads.length > 1 ? payloads : payload, (id, status) => useNfcStore.getState().setWriteStep(id, status), options);
       useNfcStore.getState().setLastQrValue(result.qrValue ?? null);
       haptics.notify(Haptics.NotificationFeedbackType.Success);
       return result;
@@ -114,7 +117,7 @@ export function useNfc() {
     await nfcManager.registerTagEvent(
       (raw) => {
         const tag = tagAnalyzer.analyze(raw);
-        const records = tag.ndefRecords.map((record) => ndefEngine.parseRecord(record));
+        const records = ndefEngine.parseContent(tag.ndefRecords);
         useNfcStore.getState().setCurrentTag(tag);
         haptics.impact(Haptics.ImpactFeedbackStyle.Heavy);
         onTag(tag, records);
@@ -143,6 +146,7 @@ export function useNfc() {
       displayTitle: 'Apagar tag',
       displayValue: tag.type,
       errorMessage: result.error?.message,
+      durationMs: result.duration,
     });
     if (result.success) {
       haptics.notify(Haptics.NotificationFeedbackType.Success);
@@ -162,6 +166,7 @@ export function useNfc() {
       status: report.canBeUsed ? 'SUCCESS' : 'FAILED',
       displayTitle: 'Diagnóstico',
       displayValue: tag.type,
+      technical: buildTechnicalSnapshot(tag, Platform.OS, nfcManager.isSimulation()),
     });
     return report;
   }

@@ -20,6 +20,14 @@ export function buildSimulatedTag(kind: NfcSimulationKind): SimTag {
       isWritable: false,
     };
   }
+  if (kind === 'rfid') {
+    return {
+      id: 'E004015012345678',
+      techTypes: ['android.nfc.tech.NfcV'],
+      ndefMessage: [],
+      isWritable: false,
+    };
+  }
   if (kind === 'locked') {
     return {
       id: '04A2B3C4D5',
@@ -31,7 +39,7 @@ export function buildSimulatedTag(kind: NfcSimulationKind): SimTag {
     };
   }
   return {
-    id: '04A2B3C4D5E6',
+    id: kind === 'empty' ? '04F1E2D3C4B5A6' : '04A2B3C4D5E6',
     maxSize: 144,
     type: 'NTAG213',
     techTypes: ['android.nfc.tech.NfcA', 'android.nfc.tech.MifareUltralight', 'android.nfc.tech.Ndef'],
@@ -93,6 +101,11 @@ export class SimulatedNfcAdapter {
     this.errorListener = null;
   }
 
+  /** A próxima sessão espera um novo "Simular tag" (ex.: tag de destino do clone). */
+  forget(): void {
+    this.presented = false;
+  }
+
   getTag(): SimTag {
     return this.current;
   }
@@ -110,6 +123,9 @@ export class SimulatedNfcAdapter {
   write(bytes: number[]): void {
     if (!this.current.isWritable) {
       throw new Error('Tag is not writable');
+    }
+    if (!(this.current.techTypes ?? []).some((tech) => tech.endsWith('Ndef'))) {
+      throw new Error('NDEF not supported');
     }
     const records = bytes.length === 0 ? [] : Ndef.decodeMessage(bytes);
     const size = bytes.length + 2;

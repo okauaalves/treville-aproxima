@@ -21,7 +21,7 @@ export function useLaunchTag() {
         return;
       }
       const tag = tagAnalyzer.analyze(raw);
-      const records = tag.ndefRecords.map((record) => ndefEngine.parseRecord(record));
+      const records = ndefEngine.parseContent(tag.ndefRecords);
       useNfcStore.getState().setCurrentTag(tag);
       setPendingRead(tag, records);
       push('/read');

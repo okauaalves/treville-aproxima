@@ -47,7 +47,7 @@ export class NfcReader {
         throw new NfcError('READ_FAILED');
       }
       const tag = tagAnalyzer.analyze(raw);
-      const records = tag.ndefRecords.map((record) => ndefEngine.parseRecord(record));
+      const records = ndefEngine.parseContent(tag.ndefRecords);
       return { tag, rawMessage: tag.ndefRecords, records };
     } catch (error) {
       throw error instanceof NfcError ? error : toNfcError(error);
@@ -66,7 +66,7 @@ export class NfcReader {
         throw new NfcError('READ_FAILED');
       }
       const tag = tagAnalyzer.analyze(raw);
-      const records = tag.ndefRecords.map((record) => ndefEngine.parseRecord(record));
+      const records = ndefEngine.parseContent(tag.ndefRecords);
       const operationId = await persistRead(tag, records);
       return { tag, records, rawMessage: tag.ndefRecords, success: true, operationId };
     } catch (error) {

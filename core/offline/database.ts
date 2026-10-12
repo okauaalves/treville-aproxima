@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
 
 import type { SaveOperationInput, SaveTagInput, SaveTemplateInput } from '@/core/offline/contracts';
-import { mapOperationRow, mapTemplateRow, safeStringify, type OperationRow, type TemplateRow } from '@/core/offline/mappers';
+import { mapOperationRow, mapTemplateRow, safeStringify, WRITE_KINDS, type OperationRow, type TemplateRow } from '@/core/offline/mappers';
 import { runMigrations } from '@/core/offline/migrations';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation } from '@/types/history';
@@ -14,7 +14,7 @@ let opening: Promise<void> | null = null;
 const OPERATION_SELECT = `
   SELECT o.id, o.tag_id, o.operation, o.status, o.content_type, o.payload, o.error_message,
          o.integrity_percent, o.duration_ms, o.created_at, o.synced,
-         o.display_title, o.display_value, o.tag_uid_hash,
+         o.display_title, o.display_value, o.tag_uid_hash, o.technical, o.payloads,
          COALESCE(o.tag_type, t.type) AS tag_type,
          COALESCE(o.tag_capacity, t.capacity) AS tag_capacity,
          COALESCE(o.tag_uid_hash, t.uid_hash) AS tag_hash
@@ -116,8 +116,8 @@ export async function saveOperation(input: SaveOperationInput): Promise<string> 
   await db().runAsync(
     `INSERT INTO operations (
       id, tag_id, operation, status, content_type, payload, error_message, integrity_percent, duration_ms, created_at, synced,
-      display_title, display_value, tag_type, tag_capacity, tag_uid_hash
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+      display_title, display_value, tag_type, tag_capacity, tag_uid_hash, technical, payloads
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     tagId,
     input.operation,
@@ -133,6 +133,8 @@ export async function saveOperation(input: SaveOperationInput): Promise<string> 
     input.tagType ?? null,
     input.tagCapacity ?? null,
     tagHash,
+    input.technical ? safeStringify(input.technical) : null,
+    input.payloads && input.payloads.length > 1 ? safeStringify(input.payloads) : null,
   );
   return id;
 }
@@ -149,9 +151,9 @@ function filterSql(filter: HistoryFilter): string {
   if (filter === 'read') {
     return "AND o.operation = 'READ'";
   }
-  // 'write' inclui WRITE e ERASE: as duas gravam na tag. DIAGNOSE fica só em 'all'.
+  // 'write' inclui tudo que altera a tag (WRITE_KINDS). DIAGNOSE fica só em 'all'.
   if (filter === 'write') {
-    return "AND o.operation IN ('WRITE', 'ERASE')";
+    return `AND o.operation IN (${WRITE_KINDS.map((kind) => `'${kind}'`).join(', ')})`;
   }
   return '';
 }

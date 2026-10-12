@@ -55,9 +55,12 @@ export type NativeModule = {
   cancelTechnologyRequest: (options?: { throwOnError?: boolean }) => Promise<void>;
   getTag: () => Promise<TagEvent | null>;
   ndefHandler: {
-    getNdefStatus: () => Promise<{ status: number }>;
+    getNdefStatus: () => Promise<{ status: number; capacity?: number; canMakeReadOnly?: boolean }>;
     writeNdefMessage: (bytes: number[], options?: { reconnectAfterWrite?: boolean }) => Promise<void>;
-    makeReadOnly: () => Promise<void>;
+    makeReadOnly: () => Promise<boolean | void>;
+  };
+  ndefFormatableHandlerAndroid?: {
+    formatNdef: (bytes: number[], options?: { readOnly: boolean }) => Promise<void>;
   };
   setEventListener: (event: string, handler: unknown) => void;
   registerTagEvent: (options?: ReaderOptions) => Promise<void>;

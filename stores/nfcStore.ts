@@ -22,6 +22,8 @@ interface NfcState {
   lastError: { code: NfcErrorCode; message: string; expected?: string; found?: string } | null;
   writeSteps: WriteStep[];
   pendingPayload: WritePayload | null;
+  /** Modo avançado: todos os registros; pendingPayload fica com o primeiro. */
+  pendingPayloads: WritePayload[] | null;
   writeOptions: WriteOptions;
   lastQrValue: string | null;
   setNfcEnabled: (value: boolean) => void;
@@ -32,6 +34,7 @@ interface NfcState {
   setWriteStep: (id: WriteStepId, status: WriteStep['status']) => void;
   resetWriteSteps: () => void;
   setPendingPayload: (payload: WritePayload | null) => void;
+  setPendingPayloads: (payloads: WritePayload[]) => void;
   setWriteOptions: (options: Partial<WriteOptions>) => void;
   setLastQrValue: (value: string | null) => void;
 }
@@ -44,6 +47,7 @@ export const useNfcStore = create<NfcState>((set) => ({
   lastError: null,
   writeSteps: DEFAULT_STEPS.map((step) => ({ ...step })),
   pendingPayload: null,
+  pendingPayloads: null,
   writeOptions: { ...emptyWriteOptions },
   lastQrValue: null,
   setNfcEnabled: (isNfcEnabled) => set({ isNfcEnabled }),
@@ -56,7 +60,8 @@ export const useNfcStore = create<NfcState>((set) => ({
       writeSteps: state.writeSteps.map((step) => (step.id === id ? { ...step, status } : step)),
     })),
   resetWriteSteps: () => set({ writeSteps: DEFAULT_STEPS.map((step) => ({ ...step })), lastError: null }),
-  setPendingPayload: (pendingPayload) => set({ pendingPayload }),
+  setPendingPayload: (pendingPayload) => set({ pendingPayload, pendingPayloads: null }),
+  setPendingPayloads: (payloads) => set({ pendingPayload: payloads[0] ?? null, pendingPayloads: payloads.length > 1 ? payloads : null }),
   setWriteOptions: (options) => set((state) => ({ writeOptions: { ...state.writeOptions, ...options } })),
   setLastQrValue: (lastQrValue) => set({ lastQrValue }),
 }));

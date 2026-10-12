@@ -82,6 +82,16 @@ export const MIGRATIONS: Migration[] = [
       'ALTER TABLE operations ADD COLUMN tag_uid_hash TEXT',
     ],
   },
+  {
+    // Só locais: o sync com o Supabase continua enviando as colunas originais.
+    version: 4,
+    name: 'technical history columns',
+    statements: [
+      'ALTER TABLE operations ADD COLUMN technical TEXT',
+      'ALTER TABLE operations ADD COLUMN payloads TEXT',
+      'CREATE INDEX IF NOT EXISTS idx_operations_operation ON operations(operation)',
+    ],
+  },
 ];
 
 export async function runMigrations(db: MigrationDb): Promise<number> {

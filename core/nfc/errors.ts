@@ -12,9 +12,17 @@ export type NfcErrorCode =
   | 'READ_FAILED'
   | 'VALIDATION_ERROR'
   | 'TIMEOUT'
-  | 'USER_CANCELLED';
+  | 'USER_CANCELLED'
+  | 'OPERATION_NOT_SUPPORTED'
+  | 'TAG_MISMATCH'
+  | 'LOCK_FAILED'
+  | 'FORMAT_FAILED';
 
 export const errorMessages: Record<NfcErrorCode, string> = {
+  OPERATION_NOT_SUPPORTED: 'Esta operação não está disponível nesta plataforma.',
+  TAG_MISMATCH: 'Esta não é a mesma tag mostrada na tela. Aproxime a tag correta.',
+  LOCK_FAILED: 'Não foi possível travar a tag. Ela continua gravável.',
+  FORMAT_FAILED: 'Não foi possível formatar a tag como NDEF.',
   TAG_MOVED: 'A tag foi afastada durante a gravação. Mantenha o celular próximo e tente novamente.',
   TAG_LOCKED: 'Esta tag está protegida contra gravação.',
   INSUFFICIENT_SPACE: 'Memória insuficiente. Use uma tag com maior capacidade ou reduza o conteúdo.',
@@ -32,6 +40,10 @@ export const errorMessages: Record<NfcErrorCode, string> = {
 };
 
 export const shortErrorCauses: Record<NfcErrorCode, string> = {
+  OPERATION_NOT_SUPPORTED: 'Operação indisponível nesta plataforma',
+  TAG_MISMATCH: 'A tag aproximada é outra',
+  LOCK_FAILED: 'O travamento falhou',
+  FORMAT_FAILED: 'A formatação falhou',
   TAG_MOVED: 'A tag foi afastada durante a gravação',
   TAG_LOCKED: 'A tag está protegida contra gravação',
   INSUFFICIENT_SPACE: 'Memória insuficiente para o conteúdo',

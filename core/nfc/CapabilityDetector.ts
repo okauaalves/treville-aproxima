@@ -6,6 +6,7 @@ import type { TagCapabilities, TagModel } from '@/types/nfc';
 
 export type RawTag = TagEvent & {
   isWritable?: boolean;
+  canMakeReadOnly?: boolean | null;
 };
 
 function techs(tag: RawTag): string[] {
@@ -36,8 +37,12 @@ export class CapabilityDetector {
     };
   }
 
+  /** Com lista de tecnologias (Android) só vale o Ndef declarado; sem lista (iOS/web) a sessão Ndef já garante. */
   supportsNdef(rawTag: RawTag): boolean {
-    return hasTech(rawTag, 'Ndef') || Array.isArray(rawTag.ndefMessage);
+    if (techs(rawTag).length > 0) {
+      return hasTech(rawTag, 'Ndef');
+    }
+    return Array.isArray(rawTag.ndefMessage);
   }
 
   checkCanWrite(rawTag: RawTag): boolean {
@@ -54,6 +59,12 @@ export class CapabilityDetector {
   checkCanLock(rawTag: RawTag): boolean {
     if (!platformCapabilities.canLockTag || Platform.OS !== 'android') {
       return false;
+    }
+    if (rawTag.canMakeReadOnly === false || rawTag.isWritable === false || !hasTech(rawTag, 'Ndef')) {
+      return false;
+    }
+    if (rawTag.canMakeReadOnly === true) {
+      return true;
     }
     const model = detectModel(rawTag);
     return model.startsWith('NTAG') || model === 'MIFARE_ULTRALIGHT' || hasTech(rawTag, 'MifareUltralight');
@@ -83,6 +94,18 @@ export function detectModel(rawTag: RawTag): TagModel {
   }
   if (hasTech(rawTag, 'MifareUltralight')) {
     return 'MIFARE_ULTRALIGHT';
+  }
+  if (hasTech(rawTag, 'NfcV')) {
+    return 'ISO15693';
+  }
+  if (hasTech(rawTag, 'IsoDep')) {
+    return 'ISO14443_4';
+  }
+  if (hasTech(rawTag, 'NfcF')) {
+    return 'FELICA';
+  }
+  if (hasTech(rawTag, 'NfcB')) {
+    return 'NFC_B';
   }
   return 'UNKNOWN';
 }

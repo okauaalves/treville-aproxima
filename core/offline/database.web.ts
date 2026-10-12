@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
 import type { SaveOperationInput, SaveTagInput, SaveTemplateInput } from '@/core/offline/contracts';
-import { mapOperationRow, mapTemplateRow, safeStringify, type OperationRow, type TagRow, type TemplateRow } from '@/core/offline/mappers';
+import { mapOperationRow, mapTemplateRow, matchesHistoryFilter, safeStringify, type OperationRow, type TagRow, type TemplateRow } from '@/core/offline/mappers';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation } from '@/types/history';
 import type { NfcTemplate } from '@/types/template';
@@ -183,19 +183,15 @@ export async function saveOperation(input: SaveOperationInput): Promise<string> 
     display_title: input.displayTitle ?? null,
     display_value: input.displayValue ?? null,
     tag_uid_hash: tagHash,
+    technical: input.technical ? safeStringify(input.technical) : null,
+    payloads: input.payloads && input.payloads.length > 1 ? safeStringify(input.payloads) : null,
   });
   await persist();
   return id;
 }
 
 function matches(filter: HistoryFilter, operation: string): boolean {
-  if (filter === 'read') {
-    return operation === 'READ';
-  }
-  if (filter === 'write') {
-    return operation === 'WRITE' || operation === 'ERASE';
-  }
-  return true;
+  return matchesHistoryFilter(filter, operation);
 }
 
 export async function getOperations(options?: { filter?: HistoryFilter; limit?: number; offset?: number }): Promise<Operation[]> {

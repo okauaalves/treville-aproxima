@@ -9,6 +9,7 @@ import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { CustomCardForm } from '@/components/nfc/CustomCardForm';
+import { entryToPayload, measureMultiRecords, MultiRecordEditor, newMultiRecordEntry, type MultiRecordEntry } from '@/components/nfc/MultiRecordEditor';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -90,6 +91,8 @@ export default function ConfigureScreen() {
   const [lockAfterWrite, setLock] = useState(false);
   const [generateQr, setQr] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [multi, setMulti] = useState(false);
+  const [extraRecords, setExtraRecords] = useState<MultiRecordEntry[]>(() => [newMultiRecordEntry()]);
   const meta = contentType ? CONTENT_TYPE_META[contentType] : null;
   useEffect(() => {
     if (!contentType) {
@@ -141,6 +144,30 @@ export default function ConfigureScreen() {
     };
   }
 
+  function tagRoom(): number {
+    const tag = useNfcStore.getState().currentTag;
+    return tag ? Math.max(tag.capacity || 0, tag.availableSpace || 0) : 0;
+  }
+
+  function continueMulti(payload: WritePayload) {
+    const payloads = [payload, ...extraRecords.map(entryToPayload)];
+    for (const [index, item] of payloads.entries()) {
+      const check = payloadValidator.validate(item);
+      if (!check.ok) {
+        useToastStore.getState().show(`Registro ${index + 1}: ${check.error ?? 'revise os campos.'}`, 'error');
+        return;
+      }
+    }
+    const build = measureMultiRecords(payloads, tagRoom());
+    if (!build || !build.fits) {
+      useToastStore.getState().show(build ? `Os registros somam ${build.totalSize} bytes e a tag comporta ${build.capacity}.` : 'Não foi possível montar os registros.', 'error');
+      return;
+    }
+    useNfcStore.getState().setPendingPayloads(payloads);
+    useNfcStore.getState().setWriteOptions({ lockAfterWrite, generateQr: false, saveAsTemplate: false, templateName: '' });
+    replace('/write/progress');
+  }
+
   function continueWrite() {
     const payload = buildPayload();
     if (!payload) {
@@ -149,6 +176,10 @@ export default function ConfigureScreen() {
     const validation = payloadValidator.validate(payload);
     if (!validation.ok) {
       useToastStore.getState().show(validation.error ?? 'Revise os campos.', 'error');
+      return;
+    }
+    if (multi) {
+      continueMulti(payload);
       return;
     }
     const tag = useNfcStore.getState().currentTag;
@@ -188,6 +219,9 @@ export default function ConfigureScreen() {
     });
     useToastStore.getState().show('Template salvo.', 'success');
   }
+
+  const basePayload = multi ? buildPayload() : null;
+  const multiBuild = basePayload ? measureMultiRecords([basePayload, ...extraRecords.map(entryToPayload)], tagRoom()) : null;
 
   if (!contentType || !meta) {
     return (
@@ -264,6 +298,14 @@ export default function ConfigureScreen() {
           </>
         ) : null}
         {contentType === 'EVENT' ? <Input label="Título do evento" value={eventTitle} onChangeText={setEventTitle} /> : null}
+
+        <Card style={{ marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: multi ? 12 : 0 }}>
+            <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '700' }}>Modo avançado — múltiplos registros</Text>
+            <Toggle value={multi} onValueChange={setMulti} accessibilityLabel="Modo avançado — múltiplos registros" />
+          </View>
+          {multi ? <MultiRecordEditor base={basePayload} entries={extraRecords} onChange={setExtraRecords} build={multiBuild} /> : null}
+        </Card>
 
         <Card padding={0} style={{ marginBottom: 8 }}>
           <Pressable accessibilityRole="button" accessibilityLabel="Opções avançadas" onPress={() => setAdvanced((value) => !value)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}>

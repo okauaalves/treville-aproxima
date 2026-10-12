@@ -69,6 +69,8 @@ function RootNavigator() {
           <Stack.Screen name="licenses" />
           <Stack.Screen name="diagnostics/index" />
           <Stack.Screen name="tag-details/[id]" />
+          <Stack.Screen name="tag-details/technical" />
+          <Stack.Screen name="automation/index" />
           <Stack.Screen name="template/[id]" />
           <Stack.Screen name="plaquinha/qr/[id]" />
           <Stack.Screen name="perfil/editar" />

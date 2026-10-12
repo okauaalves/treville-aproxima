@@ -11,6 +11,10 @@ export type NfcTagType =
   | 'NTAG216'
   | 'MIFARE_ULTRALIGHT'
   | 'MIFARE_CLASSIC'
+  | 'ISO15693'
+  | 'ISO14443_4'
+  | 'FELICA'
+  | 'NFC_B'
   | 'UNKNOWN';
 
 export type TagModel = NfcTagType;
@@ -89,6 +93,10 @@ export interface WritePayload {
   address?: string;
   text?: string;
   appUri?: string;
+  /** Android Application Record (abre o app pelo pacote). */
+  androidPackage?: string;
+  /** Registro MIME livre (modo avançado): grava `text` com este tipo MIME. */
+  mimeType?: string;
   eventTitle?: string;
   eventStart?: string;
 }
@@ -166,4 +174,4 @@ export interface WriteFlowResult {
   qrValue?: string | null;
 }
 
-export type NfcSimulationKind = 'default' | 'unsupported' | 'locked' | 'empty';
+export type NfcSimulationKind = 'default' | 'unsupported' | 'locked' | 'empty' | 'rfid';

@@ -1,3 +1,4 @@
+import type { TechnicalSnapshot } from '@/core/nfc/technical';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation, OperationKind, OperationStatus } from '@/types/history';
 import type { NfcPayload } from '@/types/nfc';
@@ -26,6 +27,8 @@ export interface SaveOperationInput {
   displayValue?: string;
   tagType?: string | null;
   tagCapacity?: number | null;
+  payloads?: NfcPayload[] | null;
+  technical?: TechnicalSnapshot | null;
 }
 
 export interface SaveTemplateInput {

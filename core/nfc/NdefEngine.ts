@@ -48,6 +48,57 @@ function bytesToString(bytes: number[]): string {
 
 export { cleanPhone };
 
+export const AAR_TYPE = 'android.com:pkg';
+
+/** Record no formato que o ndef-lib codifica: type string, id e payload em bytes. */
+export interface NormalizedRecord {
+  tnf: number;
+  type: string;
+  id: number[];
+  payload: number[];
+}
+
+function hexToBytes(value: string): number[] {
+  const clean = value.replace(/[^0-9a-f]/gi, '');
+  return (clean.match(/.{1,2}/g) ?? []).map((pair) => Number.parseInt(pair, 16));
+}
+
+/**
+ * O Android devolve `type` como array de bytes e `id` como string hex; o ndef-lib só codifica
+ * type string e id em bytes. Sem normalizar, encodeMessage quebra com records lidos da tag.
+ */
+export function normalizeRecord(record: NdefRecord | NormalizedRecord): NormalizedRecord {
+  const rawType: unknown = record.type;
+  const type = typeof rawType === 'string' ? rawType : String.fromCharCode(...asBytes(rawType));
+  const rawId: unknown = (record as { id?: unknown }).id;
+  const id = typeof rawId === 'string' ? hexToBytes(rawId) : asBytes(rawId);
+  return { tnf: Number(record.tnf), type, id, payload: asBytes(record.payload) };
+}
+
+export function encodeRecords(records: (NdefRecord | NormalizedRecord)[]): number[] {
+  return Ndef.encodeMessage(records.map(normalizeRecord) as NdefRecord[]).map((byte: number) => Number(byte));
+}
+
+/** Mensagem NDEF + cabeçalho TLV (2 bytes até 254, 4 bytes a partir de 255). */
+export function ndefMessageSize(records: (NdefRecord | NormalizedRecord)[]): number {
+  if (records.length === 0) {
+    return 0;
+  }
+  const encoded = encodeRecords(records);
+  const tlvOverhead = encoded.length < 255 ? 2 : 4;
+  return encoded.length + tlvOverhead;
+}
+
+export interface MultiRecordBuild {
+  records: NdefRecord[];
+  recordSizes: number[];
+  messageBytes: number;
+  totalSize: number;
+  capacity: number;
+  fits: boolean;
+  overBy: number;
+}
+
 function recordOf(contentType: ContentType, title: string, value: string, raw: string, data: NfcPayload): ParsedRecord {
   return { contentType, displayTitle: title, displayValue: value, rawValue: raw, data };
 }
@@ -71,6 +122,9 @@ export function detectContentType(url: string): ContentType {
 
 export class NdefEngine {
   buildMessage(payload: NfcPayload): NdefRecord[] {
+    if (payload.mimeType) {
+      return [this.buildMimeRecord(payload.mimeType, payload.text ?? '')];
+    }
     switch (payload.contentType) {
       case 'URL':
         return [this.buildUrlRecord(payload.url ?? '')];
@@ -89,7 +143,7 @@ export class NdefEngine {
       case 'LOCATION':
         return [this.buildLocationRecord(payload)];
       case 'LINK_APP':
-        return [this.buildUrlRecord(payload.appUri ?? '')];
+        return this.buildAppRecords(payload.appUri, payload.androidPackage);
       case 'EVENT':
         return [this.buildTextRecord(`${payload.eventTitle ?? 'Evento'} ${payload.eventStart ?? ''}`.trim())];
       case 'CUSTOM':
@@ -101,6 +155,40 @@ export class NdefEngine {
 
   buildUrlRecord(url: string): NdefRecord {
     return Ndef.uriRecord(url.trim());
+  }
+
+  /** Deep link (se houver) seguido do Android Application Record, que o Android usa para abrir o app. */
+  buildAppRecords(appUri?: string, androidPackage?: string): NdefRecord[] {
+    const records: NdefRecord[] = [];
+    if (appUri?.trim()) {
+      records.push(this.buildUrlRecord(appUri));
+    }
+    if (androidPackage?.trim()) {
+      records.push(Ndef.record(Ndef.TNF_EXTERNAL_TYPE, AAR_TYPE, [], stringBytes(androidPackage.trim())));
+    }
+    return records.length > 0 ? records : [this.buildUrlRecord(appUri ?? '')];
+  }
+
+  buildMimeRecord(mimeType: string, text: string): NdefRecord {
+    return Ndef.record(Ndef.TNF_MIME_MEDIA, mimeType.trim().toLowerCase(), [], stringBytes(text));
+  }
+
+  /** Monta todos os records na ordem e mede a mensagem inteira (com TLV) contra a capacidade. */
+  buildMultipleRecords(payloads: NfcPayload[], capacity = 0): MultiRecordBuild {
+    const records = payloads.flatMap((payload) => this.buildMessage(payload));
+    const recordSizes = records.map((record) => encodeRecords([record]).length);
+    const messageBytes = records.length > 0 ? encodeRecords(records).length : 0;
+    const totalSize = ndefMessageSize(records);
+    const fits = capacity <= 0 || totalSize <= capacity;
+    return {
+      records,
+      recordSizes,
+      messageBytes,
+      totalSize,
+      capacity,
+      fits,
+      overBy: fits ? 0 : totalSize - capacity,
+    };
   }
 
   buildTextRecord(text: string): NdefRecord {
@@ -161,6 +249,11 @@ export class NdefEngine {
     return this.buildUrlRecord(mapsUrl(payload.address ?? payload.label ?? ''));
   }
 
+  /** Registros com conteúdo: o record vazio (TNF 0) deixado por "Apagar" conta como tag vazia. */
+  parseContent(records: NdefRecord[]): ParsedRecord[] {
+    return records.filter((record) => Number(record.tnf) !== Ndef.TNF_EMPTY).map((record) => this.parseRecord(record));
+  }
+
   parseRecord(record: NdefRecord): ParsedRecord {
     if (Ndef.isType(record, Ndef.TNF_MIME_MEDIA, Ndef.MIME_WFA_WSC)) {
       return this.parseWifiRecord(record);
@@ -171,7 +264,17 @@ export class NdefEngine {
     if (Ndef.isType(record, Ndef.TNF_WELL_KNOWN, Ndef.RTD_TEXT)) {
       return this.parseTextRecord(record);
     }
-    const raw = bytesToString(asBytes(record.payload));
+    const normalized = normalizeRecord(record);
+    const raw = bytesToString(normalized.payload);
+    if (normalized.tnf === Ndef.TNF_EXTERNAL_TYPE && normalized.type === AAR_TYPE) {
+      return recordOf('LINK_APP', 'App Android', raw, raw, { contentType: 'LINK_APP', androidPackage: raw });
+    }
+    if (normalized.tnf === Ndef.TNF_EMPTY) {
+      return recordOf('CUSTOM', 'Vazio', '', '', { contentType: 'CUSTOM', text: '' });
+    }
+    if (normalized.tnf === Ndef.TNF_MIME_MEDIA) {
+      return recordOf('CUSTOM', normalized.type, raw, raw, { contentType: 'CUSTOM', text: raw, mimeType: normalized.type });
+    }
     return recordOf('CUSTOM', 'Personalizado', raw, raw, { contentType: 'CUSTOM', text: raw });
   }
 
@@ -275,7 +378,7 @@ export class NdefEngine {
   }
 
   calculateMessageSize(records: NdefRecord[]): number {
-    const encoded = Ndef.encodeMessage(records);
+    const encoded = encodeRecords(records);
     const tlvOverhead = encoded.length < 255 ? 2 : 4;
     return encoded.length + tlvOverhead;
   }

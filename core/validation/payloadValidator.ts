@@ -25,10 +25,14 @@ export class PayloadValidator {
   }
 
   route(payload: NfcPayload): ValidationResult {
+    if (payload.mimeType !== undefined) {
+      return this.validateMime(payload.mimeType, payload.text ?? '');
+    }
     switch (payload.contentType) {
       case 'URL':
+        return this.validateUrl(payload.url ?? '');
       case 'LINK_APP':
-        return this.validateUrl(payload.contentType === 'LINK_APP' ? payload.appUri ?? '' : payload.url ?? '');
+        return this.validateAppLink(payload.appUri ?? '', payload.androidPackage);
       case 'WHATSAPP':
         return this.validateWhatsApp(payload.phone ?? '', payload.message);
       case 'PHONE':
@@ -57,6 +61,35 @@ export class PayloadValidator {
   validateUrl(url: string): ValidationResult {
     if (!isValidUrl(url)) {
       return fail('Informe uma URL http ou https válida.', 'url');
+    }
+    return { ok: true };
+  }
+
+  /** Deep link de app aceita qualquer esquema (instagram://, spotify:, https://). Basta link ou pacote Android. */
+  validateAppLink(uri: string, androidPackage?: string): ValidationResult {
+    const link = uri.trim();
+    const pkg = androidPackage?.trim() ?? '';
+    if (!link && !pkg) {
+      return fail('Informe o link do app ou o pacote Android.', 'url');
+    }
+    if (link && !/^[a-z][a-z0-9+.-]*:\S+$/i.test(link)) {
+      return fail('O link do app deve ter um esquema, como instagram:// ou https://.', 'url');
+    }
+    if (pkg && !/^[a-zA-Z][\w]*(\.[a-zA-Z][\w]*)+$/.test(pkg)) {
+      return fail('Pacote Android inválido. Exemplo: com.whatsapp', 'androidPackage');
+    }
+    return { ok: true };
+  }
+
+  validateMime(mimeType: string, text: string): ValidationResult {
+    if (!/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(mimeType.trim())) {
+      return fail('Tipo MIME inválido. Exemplo: text/plain', 'mimeType');
+    }
+    if (!text.trim()) {
+      return fail('Informe o conteúdo do registro.', 'text');
+    }
+    if (text.length > 800) {
+      return fail('O registro pode ter no máximo 800 caracteres.', 'text');
     }
     return { ok: true };
   }

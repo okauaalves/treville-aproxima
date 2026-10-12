@@ -1,6 +1,12 @@
-import { ndefEngine } from '@/core/nfc/NdefEngine';
+import type { NdefRecord } from 'react-native-nfc-manager';
+
+import { ndefEngine, normalizeRecord, type NormalizedRecord } from '@/core/nfc/NdefEngine';
 import { nfcReader } from '@/core/nfc/NfcReader';
 import type { CompareResult, NfcPayload, ParsedRecord, RawReadResult, VerificationResult } from '@/types/nfc';
+
+function sameBytes(left: number[], right: number[]): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
 
 export function normalizeUrl(value: string): string {
   try {
@@ -40,7 +46,7 @@ function mainValue(record: ParsedRecord): string {
     case 'EVENT':
       return (data.text ?? data.eventTitle ?? '').trim();
     case 'CUSTOM':
-      return (data.cardTitle ?? '').trim();
+      return (data.cardTitle ?? data.text ?? '').trim();
     case 'VCARD':
       return (data.fullName ?? '').trim().toLowerCase();
     case 'LOCATION':
@@ -100,6 +106,37 @@ export class VerificationEngine {
       return 50;
     }
     return 0;
+  }
+
+  /**
+   * Comparação byte a byte (clone e múltiplos registros): mesma quantidade, mesmo TNF/type,
+   * payload idêntico e mesmo id, record por record e na mesma ordem.
+   */
+  compareRecords(expected: (NdefRecord | NormalizedRecord)[], actual: (NdefRecord | NormalizedRecord)[]): CompareResult {
+    const left = expected.map(normalizeRecord);
+    const right = actual.map(normalizeRecord);
+    const recordCountMatch = left.length === right.length && left.length > 0;
+    const contentTypeMatch = recordCountMatch && left.every((record, index) => record.tnf === right[index]?.tnf && record.type === right[index]?.type);
+    const mainValueMatch = contentTypeMatch && left.every((record, index) => sameBytes(record.payload, right[index]?.payload ?? []));
+    const fields = mainValueMatch && left.every((record, index) => sameBytes(record.id, right[index]?.id ?? []));
+    return {
+      recordCountMatch,
+      contentTypeMatch,
+      mainValueMatch,
+      fieldsMatch: fields,
+      allPassed: recordCountMatch && contentTypeMatch && mainValueMatch && fields,
+    };
+  }
+
+  verifyRecords(expected: (NdefRecord | NormalizedRecord)[], actual: NdefRecord[]): VerificationResult {
+    const details = this.compareRecords(expected, actual);
+    const integrityPercent = this.calculateIntegrity(details);
+    return {
+      passed: details.allPassed,
+      integrityPercent,
+      details,
+      readAfterWrite: actual.map((record) => ndefEngine.parseRecord(record)),
+    };
   }
 
   comparePayload(payload: NfcPayload, actual: ParsedRecord[]): CompareResult {

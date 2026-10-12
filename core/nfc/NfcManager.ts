@@ -388,7 +388,7 @@ export class NfcManagerService {
     return launch;
   }
 
-  async getTag(): Promise<(TagEvent & { isWritable?: boolean }) | null> {
+  async getTag(): Promise<(TagEvent & { isWritable?: boolean; canMakeReadOnly?: boolean | null }) | null> {
     if (this.mode === 'web') {
       return webNfc.getTag();
     }
@@ -404,7 +404,8 @@ export class NfcManagerService {
     }
     try {
       const status = await this.native.ndefHandler.getNdefStatus();
-      return { ...tag, isWritable: status.status === NdefStatus.ReadWrite };
+      const canMakeReadOnly = typeof status.canMakeReadOnly === 'boolean' ? status.canMakeReadOnly : (tag as { canMakeReadOnly?: boolean | null }).canMakeReadOnly;
+      return { ...tag, isWritable: status.status === NdefStatus.ReadWrite, canMakeReadOnly };
     } catch {
       return { ...tag, isWritable: false };
     }
@@ -425,11 +426,21 @@ export class NfcManagerService {
     await this.native.ndefHandler.writeNdefMessage(bytes, { reconnectAfterWrite: true });
   }
 
-  async makeReadOnly(): Promise<void> {
-    if (this.mode !== 'native' || !this.native) {
-      return;
+  /** Irreversível. Só Android nativo; na simulação, web e iOS nunca executa. */
+  async makeReadOnly(): Promise<boolean> {
+    if (this.mode !== 'native' || !this.native || this.platform !== 'android') {
+      throw new NfcError('OPERATION_NOT_SUPPORTED', 'O travamento só está disponível no app Android.');
     }
-    await this.native.ndefHandler.makeReadOnly();
+    const result = await this.native.ndefHandler.makeReadOnly();
+    return result !== false;
+  }
+
+  /** NdefFormatable.format() do Android. Exige sessão aberta com NfcTech.NdefFormatable. */
+  async formatNdef(bytes: number[]): Promise<void> {
+    if (this.mode !== 'native' || !this.native || this.platform !== 'android' || !this.native.ndefFormatableHandlerAndroid) {
+      throw new NfcError('OPERATION_NOT_SUPPORTED', 'A formatação NDEF só está disponível no app Android.');
+    }
+    await this.native.ndefFormatableHandlerAndroid.formatNdef(bytes, { readOnly: false });
   }
 
   async openSettings(): Promise<boolean> {
@@ -441,6 +452,12 @@ export class NfcManagerService {
       }
     }
     return false;
+  }
+
+  expectNewSimulatedTag(): void {
+    if (this.mode === 'simulated') {
+      simulatedNfc.forget();
+    }
   }
 
   simulateTag(kind: NfcSimulationKind = 'default'): void {

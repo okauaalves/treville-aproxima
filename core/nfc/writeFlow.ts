@@ -1,17 +1,22 @@
+import { Platform } from 'react-native';
+
 import { NfcTech } from '@/core/nfc/nfcNative';
 import { NfcError, ValidationError, VerificationFailedError } from '@/core/nfc/errors';
+import { ndefEngine } from '@/core/nfc/NdefEngine';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { nfcReader } from '@/core/nfc/NfcReader';
 import { nfcWriter } from '@/core/nfc/NfcWriter';
 import { verificationEngine } from '@/core/nfc/VerificationEngine';
 import { tagAnalyzer } from '@/core/nfc/TagAnalyzer';
+import { buildTechnicalSnapshot } from '@/core/nfc/technical';
 import { platformCapabilities } from '@/core/platform/capabilities';
 import { payloadValidator } from '@/core/validation/payloadValidator';
 import { initDatabase, saveOperation, saveTag, saveTemplate } from '@/core/offline/database';
+import { statusFromIntegrity } from '@/core/offline/mappers';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { CONTENT_TYPE_META } from '@/constants/nfcTypes';
 import { buildQrValue } from '@/utils/qrcode';
-import type { NfcTag, StepStatus, WriteFlowResult, WriteOptions, WritePayload, WriteStepId } from '@/types/nfc';
+import type { NfcTag, StepStatus, VerificationResult, WriteFlowResult, WriteOptions, WritePayload, WriteStepId } from '@/types/nfc';
 import { emptyWriteOptions } from '@/types/nfc';
 
 const WRITE_ALERT = 'Mantenha o app aberto e aproxime a tag para gravar';
@@ -30,6 +35,7 @@ function payloadText(payload: WritePayload): { title: string; value: string } {
   const value =
     payload.url ??
     payload.appUri ??
+    payload.androidPackage ??
     payload.phone ??
     payload.email ??
     payload.fullName ??
@@ -42,29 +48,48 @@ function payloadText(payload: WritePayload): { title: string; value: string } {
   return { title, value };
 }
 
+function labelFor(payloads: WritePayload[]): { title: string; value: string } {
+  const first = payloadText(payloads[0] as WritePayload);
+  if (payloads.length <= 1) {
+    return first;
+  }
+  return { title: `${payloads.length} registros`, value: payloads.map((item) => payloadText(item).value).join(' · ') };
+}
+
 /**
  * Detect abre a sessão NDEF e deixa aberta. O writer reutiliza e fecha no finally.
  * A releitura abre outra sessão. O compare usa esses records, sem segunda leitura.
+ * Com vários registros (modo avançado) a verificação compara todos, byte a byte.
  */
 export async function writeFlow(
-  payload: WritePayload,
+  input: WritePayload | WritePayload[],
   onStep: (id: WriteStepId, status: StepStatus) => void,
   options: WriteOptions = emptyWriteOptions,
 ): Promise<WriteFlowResult> {
+  const payloads = Array.isArray(input) ? input : [input];
+  const payload = payloads[0];
+  if (!payload) {
+    throw new ValidationError('Nenhum conteúdo para gravar.');
+  }
+  const multi = payloads.length > 1;
   let tag: NfcTag | null = null;
   let current: WriteStepId = 'prepare';
   let saved = false;
+  let verification: VerificationResult | null = null;
   const started = Date.now();
-  const label = payloadText(payload);
+  const label = labelFor(payloads);
 
   try {
     current = 'prepare';
     onStep('prepare', 'active');
     await initDatabase();
-    const validation = payloadValidator.validate(payload);
-    if (!validation.ok) {
-      throw new ValidationError(validation.error, validation.errorField);
+    for (const item of payloads) {
+      const validation = payloadValidator.validate(item);
+      if (!validation.ok) {
+        throw new ValidationError(validation.error, validation.errorField);
+      }
     }
+    const built = multi ? ndefEngine.buildMultipleRecords(payloads) : null;
     await pause(300);
     onStep('prepare', 'success');
 
@@ -80,7 +105,7 @@ export async function writeFlow(
 
     current = 'write';
     onStep('write', 'active');
-    const written = await nfcWriter.write(payload, tag);
+    const written = built ? await nfcWriter.writeRecords(built.records, tag) : await nfcWriter.write(payload, tag);
     if (!written.success || written.error) {
       throw written.error ?? new NfcError('WRITE_FAILED');
     }
@@ -100,7 +125,9 @@ export async function writeFlow(
 
     current = 'compare';
     onStep('compare', 'active');
-    const verification = await verificationEngine.verify(payload, interpreted);
+    verification = built
+      ? verificationEngine.verifyRecords(built.records, reread.rawMessage)
+      : await verificationEngine.verify(payload, interpreted);
     onStep('compare', 'success');
 
     current = 'confirm';
@@ -113,6 +140,7 @@ export async function writeFlow(
       throw new VerificationFailedError(`Integridade: ${verification.integrityPercent}%`, expected, found);
     }
 
+    const finalTag = reread.tag.uid ? reread.tag : tag;
     const tagId = tag.uid
       ? await saveTag({
           uid: tag.uid,
@@ -132,6 +160,8 @@ export async function writeFlow(
       status: 'SUCCESS',
       contentType: payload.contentType,
       payload,
+      payloads: multi ? payloads : null,
+      technical: buildTechnicalSnapshot(finalTag, Platform.OS, nfcManager.isSimulation()),
       displayTitle: label.title,
       displayValue: label.value,
       integrityPercent: verification.integrityPercent,
@@ -139,11 +169,20 @@ export async function writeFlow(
     });
     saved = true;
 
-    if (options.lockAfterWrite && platformCapabilities.canLockTag && tag.capabilities.canLock) {
-      if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.Ndef], { alertMessage: WRITE_ALERT });
-      }
-      await nfcManager.makeReadOnly();
+    if (options.lockAfterWrite && platformCapabilities.canLockTag && tag.capabilities.canLock && !nfcManager.isSimulation()) {
+      const locked = await nfcWriter.lockTag(finalTag);
+      await saveOperation({
+        tagUid: tag.uid,
+        tagType: tag.type,
+        tagCapacity: tag.capacity,
+        operation: 'LOCK',
+        status: locked.success ? 'SUCCESS' : 'FAILED',
+        displayTitle: 'Travar tag',
+        displayValue: label.value,
+        errorMessage: locked.error?.message ?? null,
+        durationMs: locked.duration,
+        technical: locked.tag ? buildTechnicalSnapshot(locked.tag, Platform.OS) : null,
+      }).catch(() => undefined);
     }
     if (options.saveAsTemplate && options.templateName.trim().length > 0) {
       await saveTemplate({
@@ -172,9 +211,11 @@ export async function writeFlow(
         tagType: tag?.type ?? null,
         tagCapacity: tag?.capacity ?? null,
         operation: 'WRITE',
-        status: 'FAILED',
+        status: verification ? statusFromIntegrity(false, verification.integrityPercent) : 'FAILED',
         contentType: payload.contentType,
         payload,
+        payloads: multi ? payloads : null,
+        integrityPercent: verification?.integrityPercent ?? null,
         displayTitle: label.title,
         displayValue: label.value,
         errorMessage: nfcError.message,
