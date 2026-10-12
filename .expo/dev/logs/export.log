@@ -180,3 +180,11 @@
 {"_e":"metro:instantiate","_t":1791771883129,"atlas":false,"workers":10,"host":null,"port":null}
 {"_e":"metro:bundling:started","_t":1791771884122,"id":"1","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
 {"_e":"metro:bundling:done","_t":1791771892043,"id":"1","total":3571,"ms":7920.2354}
+{"_e":"root:init","_t":1791812475519,"format":"v0-jsonl","version":"57.0.28"}
+{"_e":"env:mode","_t":1791812476009,"nodeEnv":"production","babelEnv":"production","mode":"production"}
+{"_e":"env:load","_t":1791812476013,"mode":"production","files":["../..\\..\\.env"],"env":{"EXPO_PUBLIC_ADMIN_EMAIL":"previaemailofc@gmail.com","EXPO_PUBLIC_SUPABASE_ANON_KEY":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YXZvdWtrdGp5c3h0bXRrc3BkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NDI3NzEsImV4cCI6MjEwNzExODc3MX0.Jaibo940gCbJH4bCEtDO5jenuC1k44UBqNMzTQgY3Nc","EXPO_PUBLIC_SUPABASE_SERVICE_KEY":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5YXZvdWtrdGp5c3h0bXRrc3BkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTU0Mjc3MSwiZXhwIjoyMTA3MTE4NzcxfQ.dnMT1dxTNSvintL9Ow1gbFbscWagdozWB-O2eaU6jgc","EXPO_PUBLIC_SUPABASE_URL":"https://fyavoukktjysxtmtkspd.supabase.co"}}
+{"_e":"devserver:start","_t":1791812476465,"mode":"production","web":true,"baseUrl":"","asyncRoutes":false,"routerRoot":"../..\\..\\app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":true}
+{"_e":"metro:config","_t":1791812477386,"serverRoot":"../..\\..","projectRoot":"../..\\..","exporting":true,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+{"_e":"metro:instantiate","_t":1791812477994,"atlas":false,"workers":10,"host":null,"port":null}
+{"_e":"metro:bundling:started","_t":1791812478766,"id":"1","platform":"web","environment":null,"entry":"node_modules\\expo-router\\entry.js"}
+{"_e":"metro:bundling:done","_t":1791812483232,"id":"1","total":3556,"ms":4465.459}
