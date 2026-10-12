@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { CircleCheck, Info, Mail, MailQuestionMark } from 'lucide-react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ArrowLeft, CircleCheck, Info, Mail, MailQuestionMark } from 'lucide-react-native';
 
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
@@ -87,13 +87,22 @@ export default function ForgotScreen() {
               <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 12, backgroundColor: colors.successBg, marginBottom: 14 }}>
                 <CircleCheck color={colors.success} size={20} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>Link enviado para seu e-mail</Text>
+                  <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>Link enviado para seu e-mail. Verifique sua caixa de entrada.</Text>
                   <Text style={[{ color: colors.textSecondary, fontSize: fs(13), marginTop: 2 }, inter('regular')]}>Abra o link neste aparelho. Se não chegar em alguns minutos, confira o spam.</Text>
                 </View>
               </View>
             ) : null}
             <PrimaryButton label={label} fullWidth loading={loading} disabled={!isSupabaseConfigured || wait > 0} onPress={() => void send()} />
-            <PrimaryButton label="Voltar ao login" variant="ghost" fullWidth style={{ marginTop: 8 }} onPress={() => replace('/(auth)/login')} />
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Voltar ao login"
+              hitSlop={8}
+              onPress={() => replace('/(auth)/login')}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, paddingVertical: 6 }}
+            >
+              <ArrowLeft color={colors.primary} size={18} />
+              <Text style={[{ color: colors.primary, fontSize: fs(15) }, inter('semibold')]}>Voltar ao login</Text>
+            </Pressable>
           </Card>
         </ScrollView>
       </KeyboardAvoidingView>

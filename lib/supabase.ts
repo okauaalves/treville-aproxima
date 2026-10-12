@@ -9,6 +9,8 @@ import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, 
 import { getAuthRedirect } from '@/lib/authRedirect';
 
 export const GOOGLE_DISABLED_MESSAGE = 'Login com Google ainda não está ativado no servidor.';
+/** Não confirma nem nega a conta além do necessário para orientar quem já é cliente. */
+export const ALREADY_REGISTERED_MESSAGE = 'Não foi possível criar a conta com este e-mail. Se você já tem conta, entre ou recupere a senha.';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -77,16 +79,22 @@ export function translateAuthError(error: unknown): string {
     return 'E-mail ou senha inválidos.';
   }
   if (message.includes('already registered') || message.includes('already exists') || message.includes('user already')) {
-    return 'Este e-mail já está cadastrado.';
+    return ALREADY_REGISTERED_MESSAGE;
+  }
+  if (message.includes('email not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar. O link está na sua caixa de entrada.';
+  }
+  if (message.includes('signups not allowed') || message.includes('signup is disabled') || message.includes('signup_disabled')) {
+    return 'O cadastro de novas contas está desativado no servidor.';
   }
   if (message.includes('network') || message.includes('fetch') || message.includes('failed to fetch')) {
     return 'Sem conexão. Tente novamente.';
   }
+  if ((message.includes('email address') && message.includes('invalid')) || message.includes('email_address_invalid')) {
+    return 'Informe um e-mail válido.';
+  }
   if (message.includes('weak') || message.includes('at least') || message.includes('password')) {
     return 'A senha é fraca. Use ao menos 6 caracteres.';
-  }
-  if (message.includes('email not confirmed')) {
-    return 'Verifique seu e-mail para confirmar a conta.';
   }
   return 'Não foi possível concluir. Tente novamente.';
 }
@@ -201,7 +209,7 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: { data: { full_name: fullName }, emailRedirectTo: getAuthRedirect() },
   });
   if (error) {
     throw error;

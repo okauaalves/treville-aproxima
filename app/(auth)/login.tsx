@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 
@@ -14,7 +14,6 @@ import { signInAccount, signInGoogleAccount } from '@/lib/authActions';
 import { push, replace } from '@/lib/navigation';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { useToastStore } from '@/stores/toastStore';
 import { useTheme } from '@/theme/ThemeContext';
 import { validateLogin } from '@/lib/authForm';
 
@@ -25,23 +24,51 @@ export default function LoginScreen() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const busy = useRef(false);
+
   async function submit() {
+    if (busy.current) {
+      return;
+    }
     const invalid = validateLogin(email, password);
     if (invalid) {
       setError(invalid);
       return;
     }
+    busy.current = true;
     setLoading(true);
+    setError('');
     try {
       const user = await signInAccount(email, password);
       useAuthStore.getState().setUser(user);
       replace('/(tabs)');
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : 'Não foi possível entrar.';
-      setError(message);
-      useToastStore.getState().show(message, 'error');
+      setError(caught instanceof Error ? caught.message : 'Não foi possível entrar.');
     } finally {
+      busy.current = false;
       setLoading(false);
+    }
+  }
+
+  async function google() {
+    if (busy.current) {
+      return;
+    }
+    busy.current = true;
+    setGoogleLoading(true);
+    setError('');
+    try {
+      const user = await signInGoogleAccount();
+      if (user) {
+        useAuthStore.getState().setUser(user);
+        replace('/(tabs)');
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Login com Google indisponível.');
+    } finally {
+      busy.current = false;
+      setGoogleLoading(false);
     }
   }
 
@@ -63,8 +90,8 @@ export default function LoginScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel="Esqueci minha senha" onPress={() => push('/(auth)/forgot')} style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
               <Text style={[{ color: colors.primary, fontSize: fs(13) }, inter('semibold')]}>Esqueci minha senha</Text>
             </Pressable>
-            <PrimaryButton label="Entrar" fullWidth loading={loading} onPress={() => void submit()} />
-            <PrimaryButton label="Continuar com Google" variant="secondary" icon={<GoogleMark />} fullWidth style={{ marginTop: 12 }} onPress={() => void signInGoogleAccount().then((user) => { if (user) { useAuthStore.getState().setUser(user); replace('/(tabs)'); } }).catch((caught: unknown) => { const message = caught instanceof Error ? caught.message : 'Google indisponível'; setError(message); useToastStore.getState().show(message, 'error'); })} />
+            <PrimaryButton label="Entrar" fullWidth loading={loading} disabled={googleLoading} onPress={() => void submit()} />
+            <PrimaryButton label="Continuar com Google" variant="secondary" icon={<GoogleMark />} fullWidth loading={googleLoading} disabled={loading} style={{ marginTop: 12 }} onPress={() => void google()} />
           </Card>
           <Text style={[{ textAlign: 'center', marginTop: 20, color: colors.textSecondary, fontSize: fs(14) }, inter('regular')]}>
             Não tem conta?{' '}

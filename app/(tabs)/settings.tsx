@@ -1,7 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ChevronRight, ExternalLink, ShieldCheck } from 'lucide-react-native';
+import { ChevronRight, ExternalLink, LogOut, ShieldCheck } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -62,6 +62,7 @@ export default function SettingsScreen() {
   const [modeOpen, setModeOpen] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const user = useAuthStore((state) => state.user);
   const themeLabel = THEMES.find((item) => item.value === preference)?.label ?? 'Claro';
   const modeLabel = MODES.find((item) => item.value === readMode)?.label ?? 'Padrão';
@@ -73,8 +74,10 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: Math.max(insets.bottom, 28) }}>
         <Section title="Conta">
           <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
-          <Row label="Sair" value="" first={false} onPress={() => setConfirmExit(true)} />
           {isAdminUser(user) ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
+          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <PrimaryButton label="Sair da conta" tone="danger" icon={<LogOut color={colors.onDanger} size={18} />} fullWidth onPress={() => setConfirmExit(true)} />
+          </View>
         </Section>
         <MeuPerfilSection />
         <Section title="Aparência">
@@ -112,16 +115,25 @@ export default function SettingsScreen() {
         </Section>
       </ScrollView>
       <Modal visible={confirmExit} title="Sair da conta" onClose={() => setConfirmExit(false)}>
-        <Text style={{ color: colors.textSecondary, marginBottom: 12 }}>Encerrar a sessão neste aparelho?</Text>
+        <Text style={{ color: colors.textSecondary, marginBottom: 12 }}>Encerrar a sessão neste aparelho? O histórico salvo aqui continua no celular.</Text>
         <PrimaryButton
-          label="Sair"
+          label="Sair da conta"
           tone="danger"
           fullWidth
+          loading={signingOut}
           onPress={() => {
-            setConfirmExit(false);
-            void useAuthStore.getState().signOut().then(() => replace('/(auth)/login'));
+            setSigningOut(true);
+            void useAuthStore
+              .getState()
+              .signOut()
+              .finally(() => {
+                setSigningOut(false);
+                setConfirmExit(false);
+                replace('/(auth)/login');
+              });
           }}
         />
+        <PrimaryButton label="Cancelar" variant="ghost" fullWidth style={{ marginTop: 8 }} disabled={signingOut} onPress={() => setConfirmExit(false)} />
       </Modal>
       <BottomSheet visible={themeOpen} onClose={() => setThemeOpen(false)} accessibilityLabel="Fechar tema">
         <Text style={{ color: colors.textPrimary, fontWeight: '800', fontSize: fs(18), marginBottom: 8 }}>Tema</Text>

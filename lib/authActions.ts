@@ -12,6 +12,9 @@ import {
   updatePassword,
 } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { useHistoryStore } from '@/stores/historyStore';
+import { useNfcStore } from '@/stores/nfcStore';
+import { useTemplateStore } from '@/stores/templateStore';
 import type { AppUser, LocalAccount } from '@/types/auth';
 
 const USERS_KEY = 'nfc-manager.local-users';
@@ -133,8 +136,28 @@ export async function restoreLocalSession(): Promise<AppUser | null> {
   return account ? asUser(account) : null;
 }
 
+/**
+ * Limpa só o que está em memória. O histórico e os templates no SQLite/IndexedDB ficam no aparelho
+ * (o app funciona offline); o sync para sozinho porque `syncIfOnline` exige usuário logado.
+ */
+export function clearUserMemory(): void {
+  useHistoryStore.setState({ operations: [], hasMore: true, error: null, isLoading: false, filter: 'all' });
+  useTemplateStore.setState({ templates: [], isLoading: false });
+  const nfc = useNfcStore.getState();
+  nfc.setScanning(false);
+  nfc.setCurrentTag(null);
+  nfc.setPendingPayload(null);
+  nfc.setLastQrValue(null);
+  nfc.resetWriteSteps();
+}
+
 export async function signOutUser(): Promise<void> {
-  await signOutRemote();
+  try {
+    await signOutRemote();
+  } catch {
+    // Sem rede o supabase-js já apaga a sessão local; a saída não pode travar aqui.
+  }
   await AsyncStorage.removeItem(SESSION_KEY);
+  clearUserMemory();
   useAuthStore.getState().setUser(null);
 }

@@ -2,8 +2,12 @@ import { ADMIN_EMAIL } from '@/constants/config';
 import { isAdminEmail, isAdminUser } from '@/lib/adminAccess';
 import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, parseAuthCallback } from '@/lib/authCallback';
 import { resendCooldown, validateLogin, validateNewPassword, validateRegister } from '@/lib/authForm';
-import { GOOGLE_DISABLED_MESSAGE, translateAuthError } from '@/lib/supabase';
+import { ALREADY_REGISTERED_MESSAGE, GOOGLE_DISABLED_MESSAGE, translateAuthError } from '@/lib/supabase';
+import { clearUserMemory } from '@/lib/authActions';
 import { toAppUser } from '@/stores/authStore';
+import { useHistoryStore } from '@/stores/historyStore';
+import { useNfcStore } from '@/stores/nfcStore';
+import { useTemplateStore } from '@/stores/templateStore';
 import { adminToCsv, aggregateAdmin } from '../supabase/functions/_shared/aggregate';
 
 describe('validação de login e cadastro', () => {
@@ -13,7 +17,16 @@ describe('validação de login e cadastro', () => {
     expect(validateLogin('a@b.co', '123456')).toBeNull();
   });
 
+  it('aceita e-mail com espaços nas pontas e recusa formatos incompletos', () => {
+    expect(validateLogin('  a@b.co ', '123456')).toBeNull();
+    expect(validateLogin('a@b', '123456')).toBe('Informe um e-mail válido.');
+    expect(validateLogin('', '')).toBe('Informe um e-mail válido.');
+  });
+
   it('exige nome, senhas iguais e confirmação', () => {
+    expect(validateRegister('   ', 'a@b.co', '123456', '123456')).toBe('Informe seu nome.');
+    expect(validateRegister('Ana', 'ana', '123456', '123456')).toBe('Informe um e-mail válido.');
+    expect(validateRegister('Ana', 'a@b.co', '12345', '12345')).toBe('A senha precisa ter ao menos 6 caracteres.');
     expect(validateRegister('', 'a@b.co', '123456', '123456')).toBe('Informe seu nome.');
     expect(validateRegister('Ana', 'a@b.co', '123456', '123457')).toBe('As senhas não coincidem.');
     expect(validateRegister('Ana', 'a@b.co', '123456', '123456')).toBeNull();
@@ -23,8 +36,23 @@ describe('validação de login e cadastro', () => {
 describe('erros de autenticação', () => {
   it('traduz credenciais, duplicidade e rede', () => {
     expect(translateAuthError(new Error('Invalid login credentials'))).toBe('E-mail ou senha inválidos.');
-    expect(translateAuthError(new Error('User already registered'))).toBe('Este e-mail já está cadastrado.');
+    expect(translateAuthError(new Error('User already registered'))).toBe(ALREADY_REGISTERED_MESSAGE);
     expect(translateAuthError(new Error('Failed to fetch'))).toBe('Sem conexão. Tente novamente.');
+    expect(translateAuthError(new Error('Network request failed'))).toBe('Sem conexão. Tente novamente.');
+  });
+
+  it('não confunde e-mail não confirmado nem e-mail inválido com senha fraca', () => {
+    expect(translateAuthError(new Error('Email not confirmed'))).toBe('Confirme seu e-mail antes de entrar. O link está na sua caixa de entrada.');
+    expect(translateAuthError(new Error('Email address "x@y" is invalid'))).toBe('Informe um e-mail válido.');
+    expect(translateAuthError(new Error('Password should be at least 6 characters.'))).toBe('A senha é fraca. Use ao menos 6 caracteres.');
+    expect(translateAuthError(new Error('Signups not allowed for this instance'))).toBe('O cadastro de novas contas está desativado no servidor.');
+    expect(translateAuthError(new Error('For security purposes, you can only request this after 42 seconds.'))).toBe('Muitas tentativas. Aguarde um minuto e tente de novo.');
+    expect(translateAuthError('texto solto')).toBe('Não foi possível concluir. Tente novamente.');
+  });
+
+  it('a mensagem de duplicidade não afirma que a conta existe', () => {
+    expect(ALREADY_REGISTERED_MESSAGE).not.toMatch(/já está cadastrado/);
+    expect(ALREADY_REGISTERED_MESSAGE).toContain('recupere a senha');
   });
 });
 
@@ -73,6 +101,23 @@ describe('callback OAuth', () => {
     expect(GOOGLE_DISABLED_MESSAGE).toBe('Login com Google ainda não está ativado no servidor.');
     expect(isExpiredLinkMessage('invalid flow state, no valid flow state found')).toBe(true);
     expect(translateAuthError(new Error('Email link is invalid or has expired'))).toBe('Este link expirou ou já foi usado. Peça um novo.');
+  });
+});
+
+describe('logout', () => {
+  it('limpa histórico, templates e NFC só da memória', () => {
+    useHistoryStore.setState({ operations: [{ id: 'op1' } as never], hasMore: false, filter: 'write' as never });
+    useTemplateStore.setState({ templates: [{ id: 't1' } as never] });
+    useNfcStore.getState().setLastQrValue('https://exemplo.com');
+    useNfcStore.getState().setScanning(true);
+    clearUserMemory();
+    expect(useHistoryStore.getState().operations).toEqual([]);
+    expect(useHistoryStore.getState().hasMore).toBe(true);
+    expect(useHistoryStore.getState().filter).toBe('all');
+    expect(useTemplateStore.getState().templates).toEqual([]);
+    expect(useNfcStore.getState().lastQrValue).toBeNull();
+    expect(useNfcStore.getState().isScanning).toBe(false);
+    expect(useNfcStore.getState().pendingPayload).toBeNull();
   });
 });
 
