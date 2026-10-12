@@ -4,8 +4,6 @@ export const APP_VERSION = '1.0.0';
 export const APP_BUILD = '1';
 /** Fallback nativo. Em runtime use getAuthRedirect() (web usa a origem; nativo usa o scheme treville). */
 export const AUTH_REDIRECT = 'treville://auth/callback';
-/** E-mail não é segredo: só decide se a UI do painel aparece. A autorização real é a Edge Function. */
-export const ADMIN_EMAIL = process.env.EXPO_PUBLIC_ADMIN_EMAIL ?? 'previaemailofc@gmail.com';
 export const PRIVACY_URL = 'https://example.com/nfc-manager/privacidade';
 export const TERMS_URL = 'https://example.com/nfc-manager/termos';
 /** Placeholder visível. Troque pelo e-mail real antes de publicar. */

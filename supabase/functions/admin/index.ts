@@ -34,7 +34,6 @@ Deno.serve(async (request) => {
   const url = Deno.env.get('SUPABASE_URL') ?? '';
   const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const adminEmail = (Deno.env.get('ADMIN_EMAIL') ?? 'previaemailofc@gmail.com').trim().toLowerCase();
   const authorization = request.headers.get('Authorization') ?? '';
   const jwt = authorization.replace(/^Bearer\s+/i, '');
   if (!jwt) {
@@ -50,12 +49,12 @@ Deno.serve(async (request) => {
   const email = (user.email ?? '').trim().toLowerCase();
   const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
   const role = (user.app_metadata as { role?: string } | undefined)?.role;
-  const allowed = (confirmed && email === adminEmail) || role === 'admin';
+  const admin = createClient(url, serviceKey);
+  const allowed = role === 'admin' || (confirmed && email !== '' && (await isListedAdmin(admin, email)));
   if (!allowed) {
     return json(403, { error: 'Sem permissão.' });
   }
 
-  const admin = createClient(url, serviceKey);
   const body = (await request.json().catch(() => ({}))) as { action?: string };
   const action = body.action === 'overview' ? 'stats' : body.action ?? 'stats';
   if (action !== 'stats' && action !== 'export' && action !== 'cleanup') {
@@ -87,6 +86,16 @@ Deno.serve(async (request) => {
     return json(500, { error: message });
   }
 });
+
+/** Tabela public.admins (migration 20261012030000). Sem a tabela ou com erro, nega. */
+async function isListedAdmin(admin: ReturnType<typeof createClient>, email: string): Promise<boolean> {
+  const { data, error } = await admin.from('admins').select('email').eq('email', email).maybeSingle();
+  if (error) {
+    console.warn('admins lookup failed:', error.message);
+    return false;
+  }
+  return !!data;
+}
 
 async function listAllUsers(admin: ReturnType<typeof createClient>): Promise<AdminUserRow[]> {
   const rows: AdminUserRow[] = [];

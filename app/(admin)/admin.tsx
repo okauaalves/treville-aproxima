@@ -28,7 +28,7 @@ type Overview = {
   usage?: { scansThisMonth: number; limit: number; percent: number; warning: boolean; monthStart: string } | null;
 };
 
-const DEPLOY_HINT = 'Função admin não implantada. Rode: npx supabase functions deploy admin && npx supabase secrets set ADMIN_EMAIL=previaemailofc@gmail.com';
+const DEPLOY_HINT = 'Função admin não implantada. Rode: npx supabase functions deploy admin (e aplique a migration da tabela admins).';
 
 async function describeInvokeError(error: { name?: string; message: string; context?: unknown }): Promise<string> {
   const context = error.context as { status?: number; json?: () => Promise<unknown> } | undefined;

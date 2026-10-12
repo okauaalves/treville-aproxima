@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
@@ -17,7 +18,6 @@ import { Toggle } from '@/components/ui/Toggle';
 import { APP_NAME, APP_TAGLINE } from '@/constants/config';
 import { getOperations } from '@/core/offline/database';
 import { push, replace } from '@/lib/navigation';
-import { isAdminUser } from '@/lib/adminAccess';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { ProfileAvatar } from '@/components/perfil/ProfileIcons';
 import { getProfile } from '@/lib/perfil';
@@ -64,6 +64,7 @@ export default function SettingsScreen() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const user = useAuthStore((state) => state.user);
+  const { isAdmin } = useIsAdmin();
   const themeLabel = THEMES.find((item) => item.value === preference)?.label ?? 'Claro';
   const modeLabel = MODES.find((item) => item.value === readMode)?.label ?? 'Padrão';
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -74,7 +75,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: Math.max(insets.bottom, 28) }}>
         <Section title="Conta">
           <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
-          {isAdminUser(user) ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
+          {isAdmin ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
             <PrimaryButton label="Sair da conta" tone="danger" icon={<LogOut color={colors.onDanger} size={18} />} fullWidth onPress={() => setConfirmExit(true)} />
           </View>

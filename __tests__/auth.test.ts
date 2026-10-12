@@ -1,5 +1,3 @@
-import { ADMIN_EMAIL } from '@/constants/config';
-import { isAdminEmail, isAdminUser } from '@/lib/adminAccess';
 import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, parseAuthCallback } from '@/lib/authCallback';
 import { resendCooldown, validateLogin, validateNewPassword, validateRegister } from '@/lib/authForm';
 import { ALREADY_REGISTERED_MESSAGE, GOOGLE_DISABLED_MESSAGE, translateAuthError } from '@/lib/supabase';
@@ -137,17 +135,9 @@ describe('recuperação de senha', () => {
 });
 
 describe('admin', () => {
-  it('reconhece o e-mail configurado e o papel admin', () => {
-    expect(ADMIN_EMAIL.toLowerCase()).toBe('previaemailofc@gmail.com');
-    expect(isAdminEmail('previaemailofc@gmail.com')).toBe(true);
-    expect(isAdminEmail('outro@exemplo.com')).toBe(false);
-    expect(isAdminUser({ email: 'outro@exemplo.com', app_metadata: { role: 'admin' } })).toBe(true);
-    expect(isAdminUser({ email: 'outro@exemplo.com' })).toBe(false);
-  });
-
   it('mantém app_metadata ao guardar o usuário da sessão', () => {
     const stored = toAppUser({ id: 'u1', email: 'outro@exemplo.com', user_metadata: {}, app_metadata: { role: 'admin' } });
-    expect(isAdminUser(stored)).toBe(true);
+    expect(stored.app_metadata?.role).toBe('admin');
   });
 
   it('agrega usuários ativos, tipos e csv', () => {
