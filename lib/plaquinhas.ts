@@ -11,6 +11,7 @@ import {
   type ScanLog,
 } from '@/lib/plaquinhaLogic';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { checkWebhookUrl } from '@/supabase/functions/_shared/webhook';
 
 export {
   aggregateScans,
@@ -36,7 +37,31 @@ export const BASE_URL = resolveRedirectBase(process.env.EXPO_PUBLIC_SUPABASE_URL
 
 const MAX_ID_ATTEMPTS = 5;
 const UNIQUE_VIOLATION = '23505';
-const COLUMNS = 'id, user_id, name, destination_url, destination_type, is_active, scan_count, nfc_synced, qr_synced, created_at, updated_at';
+const BASE_COLUMNS = 'id, user_id, name, destination_url, destination_type, is_active, scan_count, nfc_synced, qr_synced, created_at, updated_at';
+const PROFILE_COLUMNS = `${BASE_COLUMNS}, profile_enabled, webhook_url`;
+let profileColumns = true;
+
+/** Coluna nova ainda não criada no servidor (migração do perfil pendente). */
+export function isMissingColumn(error: { message?: string; code?: string } | null | undefined): boolean {
+  const message = (error?.message ?? '').toLowerCase();
+  return error?.code === '42703' || error?.code === 'PGRST204' || (message.includes('column') && (message.includes('does not exist') || message.includes('could not find')));
+}
+
+/** Falso quando o banco ainda não tem as colunas de perfil/webhook. */
+export function profileFeaturesReady(): boolean {
+  return profileColumns;
+}
+
+async function selectWithFallback<T>(run: (columns: string) => PromiseLike<{ data: T | null; error: { message?: string; code?: string } | null }>) {
+  if (profileColumns) {
+    const result = await run(PROFILE_COLUMNS);
+    if (!result.error || !isMissingColumn(result.error)) {
+      return result;
+    }
+    profileColumns = false;
+  }
+  return run(BASE_COLUMNS);
+}
 
 export class PlaquinhaError extends Error {
   constructor(message: string) {
@@ -66,10 +91,13 @@ function client() {
   return supabase;
 }
 
-function friendly(error: { message?: string; code?: string } | null, fallback: string): PlaquinhaError {
+export function friendly(error: { message?: string; code?: string } | null, fallback: string): PlaquinhaError {
   const message = (error?.message ?? '').toLowerCase();
   if (message.includes('fetch') || message.includes('network')) {
     return new PlaquinhaError('Sem conexão. Tente novamente.');
+  }
+  if (isMissingColumn(error) || error?.code === 'PGRST202' || message.includes('could not find the function')) {
+    return new PlaquinhaError('O servidor ainda não tem os recursos de perfil e webhook. Aplique a atualização do banco (supabase db push).');
   }
   if (error?.code === '42P01' || message.includes('does not exist') || message.includes('could not find the table')) {
     return new PlaquinhaError('O servidor ainda não tem as tabelas de plaquinhas.');
@@ -127,19 +155,19 @@ export async function updateDestino(linkId: string, newUrl: string, type: Destin
 }
 
 export async function getPlaquinhas(userId: string): Promise<RedirectLink[]> {
-  const { data, error } = await client().from('redirect_links').select(COLUMNS).eq('user_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await selectWithFallback((columns) => client().from('redirect_links').select(columns).eq('user_id', userId).order('created_at', { ascending: false }));
   if (error) {
     throw friendly(error, 'Não foi possível carregar as plaquinhas.');
   }
-  return (data ?? []) as RedirectLink[];
+  return (data ?? []) as unknown as RedirectLink[];
 }
 
 export async function getPlaquinha(linkId: string): Promise<RedirectLink | null> {
-  const { data, error } = await client().from('redirect_links').select(COLUMNS).eq('id', linkId).maybeSingle();
+  const { data, error } = await selectWithFallback((columns) => client().from('redirect_links').select(columns).eq('id', linkId).maybeSingle());
   if (error) {
     throw friendly(error, 'Não foi possível carregar a plaquinha.');
   }
-  return (data as RedirectLink | null) ?? null;
+  return (data as unknown as RedirectLink | null) ?? null;
 }
 
 /** Últimos 100 scans (RLS: só os da própria plaquinha). */
@@ -168,4 +196,22 @@ export async function markNfcSynced(linkId: string): Promise<void> {
   if (error) {
     throw friendly(error, 'A tag foi gravada, mas não deu para salvar o status.');
   }
+}
+
+/** 
+ull desliga o webhook. A URL passa pela mesma regra anti-SSRF da Edge Function. */
+export async function updateWebhook(linkId: string, url: string | null): Promise<string | null> {
+  let value: string | null = null;
+  if (url !== null) {
+    const check = checkWebhookUrl(url);
+    if (!check.ok) {
+      throw new PlaquinhaError(check.error);
+    }
+    value = check.url;
+  }
+  const { error } = await client().from('redirect_links').update({ webhook_url: value, updated_at: new Date().toISOString() }).eq('id', linkId);
+  if (error) {
+    throw friendly(error, 'Não foi possível salvar o webhook.');
+  }
+  return value;
 }

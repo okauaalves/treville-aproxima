@@ -162,6 +162,7 @@ export default function PlaquinhasScreen() {
                 onQr={() => push(`/plaquinha/qr/${item.id}`)}
                 onWrite={() => void gravarPlaquinhaNaTag(item.id)}
                 onToggle={(next) => void toggle(item, next)}
+                onProfile={() => push(`/perfil/links/${item.id}`)}
               />
             </View>
           )}

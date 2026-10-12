@@ -26,6 +26,9 @@ export interface RedirectLink {
   qr_synced: boolean;
   created_at: string;
   updated_at: string;
+  /** Ausentes enquanto a migração do perfil não foi aplicada. */
+  profile_enabled?: boolean;
+  webhook_url?: string | null;
 }
 
 export interface ScanLog {

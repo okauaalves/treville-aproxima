@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, Share, Text, View } from 'react-native';
-import { ChevronRight, ShieldCheck } from 'lucide-react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { Linking, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { ChevronRight, ExternalLink, ShieldCheck } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,6 +19,11 @@ import { getOperations } from '@/core/offline/database';
 import { push, replace } from '@/lib/navigation';
 import { isAdminUser } from '@/lib/adminAccess';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { ProfileAvatar } from '@/components/perfil/ProfileIcons';
+import { getProfile } from '@/lib/perfil';
+import { getLinkUrl, getPlaquinhas, plaquinhasAvailable } from '@/lib/plaquinhas';
+import { useToastStore } from '@/stores/toastStore';
+import { DEFAULT_THEME_COLOR } from '@/supabase/functions/_shared/profilePage';
 import { useAuthStore } from '@/stores/authStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { ThemePreference } from '@/theme/colors';
@@ -70,6 +76,7 @@ export default function SettingsScreen() {
           <Row label="Sair" value="" first={false} onPress={() => setConfirmExit(true)} />
           {isAdminUser(user) ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
         </Section>
+        <MeuPerfilSection />
         <Section title="Aparência">
           <Row label="Tema" value={themeLabel} onPress={() => setThemeOpen(true)} />
           <Row label="Idioma" value={language === 'pt-BR' ? 'Português (Brasil)' : language} onPress={() => setLanguageOpen(true)} first={false} />
@@ -179,5 +186,64 @@ function ToggleRow({ label, value, onChange, first = false }: { label: string; v
       <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600', fontSize: fs(14) }}>{label}</Text>
       <Toggle value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
+  );
+}
+
+function MeuPerfilSection() {
+  const { colors } = useTheme();
+  const user = useAuthStore((state) => state.user);
+  const available = plaquinhasAvailable() && !!user;
+  const [summary, setSummary] = useState<{ name: string; avatar: string | null; color: string } | null>(null);
+  const fallback = (user?.user_metadata?.full_name as string | undefined) ?? user?.email ?? 'Seu perfil';
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!available) {
+        return;
+      }
+      let alive = true;
+      getProfile()
+        .then((profile) => {
+          if (alive) {
+            setSummary({ name: profile.display_name || profile.full_name || fallback, avatar: profile.avatar_url, color: profile.theme_color || DEFAULT_THEME_COLOR });
+          }
+        })
+        .catch(() => undefined);
+      return () => {
+        alive = false;
+      };
+    }, [available, fallback]),
+  );
+
+  async function openPage() {
+    if (!user) {
+      return;
+    }
+    try {
+      const links = await getPlaquinhas(user.id);
+      const withProfile = links.find((link) => link.profile_enabled && link.is_active);
+      if (!withProfile) {
+        useToastStore.getState().show('Nenhuma plaquinha está com a página de perfil ativa. Ative em Plaquinhas, no botão Perfil do card.', 'info');
+        return;
+      }
+      await Linking.openURL(getLinkUrl(withProfile.id));
+    } catch (failure) {
+      useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível abrir sua página.', 'error');
+    }
+  }
+
+  if (!available) {
+    return (
+      <Section title="Meu Perfil Digital">
+        <Row label="Perfil digital" value="Precisa de conta conectada" />
+      </Section>
+    );
+  }
+  const name = summary?.name ?? fallback;
+  return (
+    <Section title="Meu Perfil Digital">
+      <Row label="Editar perfil" value={name} icon={<ProfileAvatar uri={summary?.avatar ?? null} name={name} color={summary?.color ?? DEFAULT_THEME_COLOR} size={28} />} onPress={() => push('/perfil/editar')} />
+      <Row label="Ver minha página" value="" first={false} icon={<ExternalLink color={colors.primary} size={18} />} onPress={() => void openPage()} />
+    </Section>
   );
 }

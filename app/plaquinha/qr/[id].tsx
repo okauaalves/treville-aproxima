@@ -12,11 +12,12 @@ import { EditarDestinoModal } from '@/components/plaquinha/EditarDestinoModal';
 import { DestinationIcon } from '@/components/plaquinha/DestinoForm';
 import { Pill } from '@/components/plaquinha/Pill';
 import { ScanChart } from '@/components/plaquinha/ScanChart';
+import { WebhookSection } from '@/components/plaquinha/WebhookSection';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
-import { replace } from '@/lib/navigation';
+import { push, replace } from '@/lib/navigation';
 import { gravarPlaquinhaNaTag } from '@/lib/plaquinhaNfc';
 import {
   aggregateScans,
@@ -235,6 +236,18 @@ export default function PlaquinhaQrScreen() {
             <Text style={[{ color: colors.textSecondary, fontSize: fs(13), marginTop: 16, marginBottom: 8 }, inter('semibold')]}>Últimos 7 dias</Text>
             <ScanChart days={stats.days} max={stats.maxPerDay} />
           </Section>
+
+          <Section title="Página de perfil">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
+              <Text style={[{ flex: 1, color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
+                {link.profile_enabled ? 'O scan abre sua mini página de links.' : 'O scan vai direto ao destino.'}
+              </Text>
+            </View>
+            <PrimaryButton label="Editar perfil" variant="secondary" fullWidth style={{ marginTop: 12 }} onPress={() => push(`/perfil/links/${link.id}`)} />
+          </Section>
+
+          <WebhookSection key={`${link.id}:${link.webhook_url ?? ''}`} link={link} onSaved={(webhookUrl) => setLink({ ...link, webhook_url: webhookUrl })} />
 
           <View style={{ gap: 10, marginTop: 18 }}>
             <PrimaryButton label="Compartilhar QR" fullWidth loading={busy === 'share'} icon={<Share2 color={colors.onPrimary} size={20} />} onPress={() => void share()} />
