@@ -9,28 +9,38 @@ export class AdminApiError extends Error {
   }
 }
 
-async function describe(error: { name?: string; message: string; context?: unknown }): Promise<string> {
+export const MIGRATION_PENDING_HINT = 'O servidor ainda não tem as tabelas de admin. Rode supabase db push.';
+
+export type AdminErrorInfo = { message: string; migrationPending: boolean };
+
+/** Traduz o erro do functions.invoke; 503 `migracao_pendente` vira o aviso de migração, não erro vermelho. */
+export async function describeAdminError(error: { name?: string; message: string; context?: unknown }): Promise<AdminErrorInfo> {
   const context = error.context as { status?: number; json?: () => Promise<unknown> } | undefined;
   const status = context?.status;
   if (status === 404) {
-    return DEPLOY_HINT;
+    return { message: DEPLOY_HINT, migrationPending: false };
   }
   if (status === 401) {
-    return 'Sessão expirada. Saia e entre novamente.';
+    return { message: 'Sessão expirada. Saia e entre novamente.', migrationPending: false };
   }
   if (status === 403) {
-    return 'Esta conta não tem permissão de administrador.';
+    return { message: 'Esta conta não tem permissão de administrador.', migrationPending: false };
   }
   if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') {
-    return `Não foi possível contatar a função admin. ${DEPLOY_HINT}`;
+    return { message: `Não foi possível contatar a função admin. ${DEPLOY_HINT}`, migrationPending: false };
   }
-  if (context?.json) {
-    const body = (await context.json().catch(() => null)) as { error?: string } | null;
-    if (body?.error) {
-      return body.error === 'Ação desconhecida.' ? DEPLOY_HINT : body.error;
-    }
+  const body = context?.json ? ((await context.json().catch(() => null)) as { error?: string; code?: string } | null) : null;
+  if (status === 503 || body?.code === 'migracao_pendente') {
+    return { message: body?.error || MIGRATION_PENDING_HINT, migrationPending: true };
   }
-  return error.message;
+  if (body?.error) {
+    return { message: body.error === 'Ação desconhecida.' ? DEPLOY_HINT : body.error, migrationPending: false };
+  }
+  return { message: error.message, migrationPending: false };
+}
+
+async function describe(error: { name?: string; message: string; context?: unknown }): Promise<string> {
+  return (await describeAdminError(error)).message;
 }
 
 /** A autorização é feita na Edge Function (service_role só lá). */

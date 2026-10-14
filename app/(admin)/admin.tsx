@@ -13,7 +13,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { countPendingEditRequests } from '@/lib/adminAccess';
-import { countPendingAccess } from '@/lib/adminApi';
+import { countPendingAccess, describeAdminError, MIGRATION_PENDING_HINT } from '@/lib/adminApi';
 import { downloadCsv } from '@/lib/downloadCsv';
 import { push } from '@/lib/navigation';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -32,32 +32,31 @@ type Overview = {
   recentOperations: { id: string; email: string; contentType: string; createdAt: string; status: string }[];
   topTemplates: { id: string; name: string; useCount: number }[];
   usage?: { scansThisMonth: number; limit: number; percent: number; warning: boolean; monthStart: string } | null;
+  links?: { id: string; name: string; destinationType: string; isActive: boolean; scanCount: number }[];
+  admins?: { email: string; name: string }[];
+  scans?: { total: number; last30d: number };
+  warnings?: string[];
 };
 
-const DEPLOY_HINT = 'Função admin não implantada. Rode: npx supabase functions deploy admin (e aplique a migration da tabela admins).';
-
-async function describeInvokeError(error: { name?: string; message: string; context?: unknown }): Promise<string> {
-  const context = error.context as { status?: number; json?: () => Promise<unknown> } | undefined;
-  const status = context?.status;
-  if (status === 404) {
-    return DEPLOY_HINT;
-  }
-  if (status === 401) {
-    return 'Sessão expirada. Saia e entre novamente.';
-  }
-  if (status === 403) {
-    return 'Esta conta não tem permissão de administrador.';
-  }
-  if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') {
-    return `Não foi possível contatar a função admin. ${DEPLOY_HINT}`;
-  }
-  if (context?.json) {
-    const body = (await context.json().catch(() => null)) as { error?: string } | null;
-    if (body?.error) {
-      return body.error;
-    }
-  }
-  return error.message;
+/** Função antiga pode não mandar os campos novos; nada de quebrar a tela. */
+function normalizeOverview(raw: unknown): Overview {
+  const value = (raw ?? {}) as Partial<Overview>;
+  const list = <T,>(items: T[] | undefined): T[] => (Array.isArray(items) ? items : []);
+  return {
+    totalUsers: Number(value.totalUsers ?? 0),
+    activeUsers7d: Number(value.activeUsers7d ?? 0),
+    totalOperations: Number(value.totalOperations ?? 0),
+    totalTemplates: Number(value.totalTemplates ?? 0),
+    users: list(value.users),
+    operationsByType: list(value.operationsByType),
+    recentOperations: list(value.recentOperations),
+    topTemplates: list(value.topTemplates),
+    usage: value.usage ?? null,
+    links: list(value.links),
+    admins: list(value.admins),
+    scans: value.scans,
+    warnings: list(value.warnings).filter((item): item is string => typeof item === 'string'),
+  };
 }
 
 function formatDate(value: string | null): string {
@@ -73,6 +72,7 @@ export default function AdminScreen() {
   const { serverMissing } = useIsAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [migrationPending, setMigrationPending] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -87,15 +87,30 @@ export default function AdminScreen() {
     }
     setLoading(true);
     setError('');
-    const { data: payload, error: invokeError } = await supabase.functions.invoke('admin', { body: { action: 'stats' } });
+    setMigrationPending('');
+    const { data: payload, error: invokeError } = await supabase.functions.invoke('admin', { body: { action: 'overview' } });
     if (invokeError) {
-      setError(await describeInvokeError(invokeError));
+      const info = await describeAdminError(invokeError);
+      if (info.migrationPending) {
+        setMigrationPending(info.message);
+      } else {
+        setError(info.message);
+      }
       setLoading(false);
       return;
     }
-    setData(payload as Overview);
+    setData(normalizeOverview(payload));
     setLoading(false);
   }, []);
+
+  async function showError(invokeError: { name?: string; message: string; context?: unknown }) {
+    const info = await describeAdminError(invokeError);
+    if (info.migrationPending) {
+      setMigrationPending(info.message);
+    } else {
+      setError(info.message);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -113,7 +128,7 @@ export default function AdminScreen() {
     const { data: payload, error: invokeError } = await supabase.functions.invoke('admin', { body: { action: 'export' } });
     setBusy(false);
     if (invokeError) {
-      setError(await describeInvokeError(invokeError));
+      await showError(invokeError);
       return;
     }
     if (!payload || typeof payload.csv !== 'string') {
@@ -132,7 +147,7 @@ export default function AdminScreen() {
     const { data: payload, error: invokeError } = await supabase.functions.invoke('admin', { body: { action: 'cleanup' } });
     setBusy(false);
     if (invokeError) {
-      setError(await describeInvokeError(invokeError));
+      await showError(invokeError);
       return;
     }
     const deleted = typeof payload?.deleted === 'number' ? payload.deleted : 0;
@@ -141,20 +156,25 @@ export default function AdminScreen() {
   }
 
   const max = Math.max(1, ...(data?.operationsByType.map((item) => item.count) ?? [1]));
+  const warnings = data?.warnings ?? [];
+  const showMigrationCard = serverMissing || !!migrationPending || warnings.length > 0;
 
   return (
     <Screen maxWidth={CONTENT_WIDTH.admin}>
       <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
-        {serverMissing ? (
+        {showMigrationCard ? (
           <Card style={{ borderColor: colors.warning, borderWidth: 1 }}>
             <View testID="admin-aviso-migracao" accessible accessibilityRole="alert" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
               <TriangleAlert color={colors.warning} size={22} />
               <View style={{ flex: 1 }}>
-                <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>O servidor ainda não tem as tabelas de admin. Rode supabase db push.</Text>
+                <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>{migrationPending || MIGRATION_PENDING_HINT}</Text>
                 <Text style={[{ color: colors.textSecondary, fontSize: fs(13), marginTop: 4 }, inter('regular')]}>
                   Você entrou pelo e-mail de admin, mas as aprovações, solicitações e a lista de admins só funcionam depois das migrações e do deploy da função admin.
                 </Text>
+                {warnings.map((item) => (
+                  <Text key={item} style={[{ color: colors.textSecondary, fontSize: fs(12), marginTop: 4 }, inter('regular')]}>• {item}</Text>
+                ))}
               </View>
             </View>
           </Card>
@@ -179,7 +199,30 @@ export default function AdminScreen() {
               <Metric label="Operações" value={data.totalOperations} />
               <Metric label="Templates" value={data.totalTemplates} />
             </View>
+            {data.scans ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                <Metric label="Scans (total)" value={data.scans.total} />
+                <Metric label="Scans 30 dias" value={data.scans.last30d} />
+              </View>
+            ) : null}
             <UsageCard usage={data.usage ?? null} />
+            <Card>
+              <Text style={[{ color: colors.textPrimary, marginBottom: 8 }, inter('bold')]}>Plaquinhas</Text>
+              {(data.links ?? []).length === 0 ? <Text style={{ color: colors.textSecondary }}>Nenhuma plaquinha.</Text> : null}
+              {(data.links ?? []).slice(0, 20).map((link) => (
+                <Text key={link.id} style={[{ color: colors.textPrimary, marginTop: 6 }, inter('regular')]}>
+                  {link.name || link.id} · {link.destinationType} · {link.isActive ? 'ativa' : 'inativa'} · {link.scanCount} scans
+                </Text>
+              ))}
+            </Card>
+            <Card>
+              <Text style={[{ color: colors.textPrimary, marginBottom: 8 }, inter('bold')]}>Administradores</Text>
+              {(data.admins ?? []).map((item) => (
+                <Text key={item.email} style={[{ color: colors.textPrimary, marginTop: 6 }, inter('regular')]}>
+                  {item.name ? `${item.name} · ` : ''}{item.email}
+                </Text>
+              ))}
+            </Card>
             <Card>
               <Text style={[{ color: colors.textPrimary, marginBottom: 8 }, inter('bold')]}>Usuários</Text>
               {data.users.length === 0 ? <Text style={{ color: colors.textSecondary }}>Nenhum usuário sincronizado.</Text> : null}
