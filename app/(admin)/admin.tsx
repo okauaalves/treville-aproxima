@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { ChevronRight, QrCode, UserCheck } from 'lucide-react-native';
+import { ChevronRight, KeyRound, QrCode, ShieldCheck, UserCheck } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
@@ -11,6 +11,7 @@ import { CountBadge } from '@/components/ui/CountBadge';
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { countPendingEditRequests } from '@/lib/adminAccess';
 import { countPendingAccess } from '@/lib/adminApi';
 import { downloadCsv } from '@/lib/downloadCsv';
 import { push } from '@/lib/navigation';
@@ -74,6 +75,7 @@ export default function AdminScreen() {
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(0);
+  const [pendingEdits, setPendingEdits] = useState(0);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -97,6 +99,7 @@ export default function AdminScreen() {
     useCallback(() => {
       void load();
       void countPendingAccess().then(setPending);
+      void countPendingEditRequests().then(setPendingEdits);
     }, [load]),
   );
 
@@ -142,6 +145,8 @@ export default function AdminScreen() {
       <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
         <AdminShortcut testID="admin-atalho-acessos" title="Gerenciar acessos" subtitle="Aprovar, bloquear e convidar usuários" icon={<UserCheck color={colors.primary} size={22} />} badge={pending} onPress={() => push('/access')} />
+        <AdminShortcut testID="admin-atalho-edicao" title="Solicitações de edição" subtitle="Liberar, negar e revogar edição de plaquinhas" icon={<KeyRound color={colors.primary} size={22} />} badge={pendingEdits} onPress={() => push('/edit-requests')} />
+        <AdminShortcut testID="admin-atalho-admins" title="Administradores" subtitle="Adicionar e remover admins" icon={<ShieldCheck color={colors.primary} size={22} />} onPress={() => push('/admins')} />
         <AdminShortcut testID="admin-atalho-lote" title="Gerar QR Codes em lote" subtitle="Até 100 plaquinhas com PDF e CSV" icon={<QrCode color={colors.primary} size={22} />} onPress={() => push('/qr-batch')} />
         {loading ? (
           <>

@@ -2,12 +2,15 @@ const maybeSingle = jest.fn();
 const eq = jest.fn((_column: string, _value: string) => ({ maybeSingle }));
 const select = jest.fn((_columns: string) => ({ eq }));
 const from = jest.fn((_table: string) => ({ select }));
-const mockState: { from: typeof from; listener: ((event: string) => void) | null } = { from, listener: null };
+const rpc = jest.fn();
+const mockState: { from: typeof from; rpc: typeof rpc; listener: ((event: string) => void) | null } = { from, rpc, listener: null };
+const RPC_MISSING = { data: null, error: { code: 'PGRST202', message: 'function not found' } };
 
 jest.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,
   supabase: {
     from: (table: string) => mockState.from(table),
+    rpc: (name: string) => mockState.rpc(name),
     auth: {
       onAuthStateChange: (callback: (event: string) => void) => {
         mockState.listener = callback;
@@ -22,12 +25,40 @@ const { clearAdminCache, getCachedAdmin, isAdminUser } = require('@/lib/auth') a
 
 const user = (email?: string, id = 'u1') => ({ id, email, app_metadata: {} });
 
-describe('isAdminUser (tabela admins)', () => {
+describe('isAdminUser (RPC is_admin)', () => {
   let warn: jest.SpyInstance;
 
   beforeEach(() => {
     clearAdminCache();
     jest.clearAllMocks();
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => warn.mockRestore());
+
+  it('usa a decisão do servidor sem ler a tabela', async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null });
+    await expect(isAdminUser(user('admin2@exemplo.com'))).resolves.toBe(true);
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    await expect(isAdminUser(user('outro@exemplo.com', 'u3'))).resolves.toBe(false);
+    expect(rpc).toHaveBeenCalledWith('is_admin');
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('erro da RPC (não ausência) nega sem cair na tabela', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '500', message: 'boom' } });
+    await expect(isAdminUser(user('a@b.co'))).resolves.toBe(false);
+    expect(from).not.toHaveBeenCalled();
+  });
+});
+
+describe('isAdminUser (fallback tabela admins sem a RPC)', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    clearAdminCache();
+    jest.clearAllMocks();
+    rpc.mockResolvedValue(RPC_MISSING);
     warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 

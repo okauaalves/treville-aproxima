@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AtSign,
@@ -12,6 +12,7 @@ import {
   Copy,
   Globe,
   IdCard,
+  KeyRound,
   Mail,
   MapPin,
   MessageCircle,
@@ -35,8 +36,11 @@ import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { CHIP_LABELS, describeRecord, identifyTechnologies } from '@/core/nfc/technical';
 import { useDispatchState, useReadLock, useTagDispatch } from '@/hooks/useTagDispatch';
+import { parsePlaquinhaCode } from '@/lib/editAccessLogic';
 import { openNfcFlow } from '@/lib/nfcEntry';
+import { getPlaquinha, plaquinhasAvailable } from '@/lib/plaquinhas';
 import { persistReadOperation, summarizeRead, type ReadKind } from '@/lib/readResult';
+import { useAuthStore } from '@/stores/authStore';
 import { useNfcStore } from '@/stores/nfcStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
@@ -87,6 +91,27 @@ export default function TagResultScreen() {
   const locked = useReadLock();
   const summary = useMemo(() => summarizeRead(tag, records), [tag, records]);
   const waiting = armed && !locked;
+  const user = useAuthStore((state) => state.user);
+  const plaquinhaCode = useMemo(() => (summary.href && summary.href.includes('/functions/v1/redirect/') ? parsePlaquinhaCode(summary.href) : null), [summary.href]);
+  const [foreign, setForeign] = useState<string | null>(null);
+
+  // Tag de plaquinha: se o link não é do usuário (RLS não devolve), oferece pedir acesso de edição.
+  useEffect(() => {
+    if (!plaquinhaCode || !user || !plaquinhasAvailable()) {
+      return;
+    }
+    let alive = true;
+    getPlaquinha(plaquinhaCode)
+      .then((row) => {
+        if (alive) {
+          setForeign(row ? null : plaquinhaCode);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [plaquinhaCode, user]);
 
   useTagDispatch(
     (next, nextRecords) => {
@@ -120,6 +145,18 @@ export default function TagResultScreen() {
       router.dismissTo('/(tabs)');
     } else {
       router.replace('/(tabs)');
+    }
+  }
+
+  function requestEdit() {
+    if (!plaquinhaCode) {
+      return;
+    }
+    const href = `/(tabs)/plaquinhas?solicitar=${plaquinhaCode}` as Href;
+    if (router.canDismiss()) {
+      router.dismissTo(href);
+    } else {
+      router.replace(href);
     }
   }
 
@@ -199,6 +236,16 @@ export default function TagResultScreen() {
                 style={({ pressed }) => ({ minHeight: 56, borderRadius: 16, backgroundColor: BLUE, opacity: pressed ? 0.85 : 1, alignItems: 'center', justifyContent: 'center' })}
               >
                 <Text style={[{ color: '#FFFFFF', fontSize: fs(18) }, inter('extrabold')]}>Abrir →</Text>
+              </Pressable>
+            ) : null}
+            {foreign && foreign === plaquinhaCode ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={requestEdit}
+                style={({ pressed }) => ({ minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: BLUE_BORDER, backgroundColor: pressed ? 'rgba(59,130,246,0.22)' : 'rgba(59,130,246,0.12)', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' })}
+              >
+                <KeyRound color={LIGHT_BLUE} size={20} />
+                <Text style={[{ color: WHITE, fontSize: fs(16) }, inter('extrabold')]}>Solicitar acesso de edição</Text>
               </Pressable>
             ) : null}
             {summary.kind === 'empty' ? (

@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { ChartColumn, IdCard, Nfc, Pencil, QrCode } from 'lucide-react-native';
+import { ChartColumn, IdCard, Nfc, Pencil, QrCode, ShieldCheck } from 'lucide-react-native';
 import Animated from 'react-native-reanimated';
 
 import { DestinationIcon } from '@/components/plaquinha/DestinoForm';
 import { Pill } from '@/components/plaquinha/Pill';
 import { Card } from '@/components/ui/Card';
 import { Toggle } from '@/components/ui/Toggle';
+import type { EditBadge } from '@/lib/editAccessLogic';
 import { isDestinationType, SYNC_LABELS, syncStatus, type RedirectLink } from '@/lib/plaquinhaLogic';
 import { listEntering } from '@/theme/enter';
 import { inter } from '@/theme/fonts';
@@ -51,22 +52,26 @@ export function PlaquinhaCard({
   onToggle,
   onProfile,
   onStats,
+  access,
 }: {
   link: RedirectLink;
   index: number;
   onEdit: () => void;
   onQr: () => void;
   onWrite: () => void;
-  onToggle: (next: boolean) => void;
-  onProfile: () => void;
+  onToggle?: (next: boolean) => void;
+  onProfile?: () => void;
   onStats: () => void;
+  /** Plaquinha de outro usuário com edição autorizada: só destino, QR e NFC. */
+  access?: EditBadge;
 }) {
   const { colors, fs, reduceAnimations } = useTheme();
   const type = isDestinationType(link.destination_type) ? link.destination_type : 'url';
+  const shared = access !== undefined;
   return (
     <Animated.View entering={listEntering(index, reduceAnimations)}>
       <Card padding={16} style={{ marginBottom: 12 }}>
-        <View testID="plaquinha-card" style={{ gap: 12 }}>
+        <View testID={shared ? 'plaquinha-card-shared' : 'plaquinha-card'} style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <DestinationIcon type={type} size={40} />
             <View style={{ flex: 1 }}>
@@ -77,9 +82,12 @@ export function PlaquinhaCard({
                 {link.destination_type === 'empty' ? 'Sem destino' : link.destination_url}
               </Text>
             </View>
-            <Toggle value={link.is_active} onValueChange={onToggle} accessibilityLabel={link.is_active ? `Desativar ${link.name}` : `Ativar ${link.name}`} />
+            {onToggle && !shared ? (
+              <Toggle value={link.is_active} onValueChange={onToggle} accessibilityLabel={link.is_active ? `Desativar ${link.name}` : `Ativar ${link.name}`} />
+            ) : null}
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+            {access ? <Pill label={access.label} tone={access.tone} icon={<ShieldCheck color={colors.success} size={12} />} /> : null}
             {link.nfc_synced ? <Pill label="NFC" tone="success" /> : null}
             <Pill label="QR" tone="primary" />
             {link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
@@ -103,8 +111,11 @@ export function PlaquinhaCard({
             <Action label="Editar" icon={<Pencil color={colors.primary} size={16} />} onPress={onEdit} />
             <Action label="QR Code" icon={<QrCode color={colors.primary} size={16} />} onPress={onQr} />
             <Action label="Gravar NFC" icon={<Nfc color={colors.primary} size={16} />} onPress={onWrite} />
-            <Action label="Perfil" a11yLabel={`Editar perfil de ${link.name}`} icon={<IdCard color={colors.primary} size={16} />} onPress={onProfile} />
+            {onProfile && !shared ? <Action label="Perfil" a11yLabel={`Editar perfil de ${link.name}`} icon={<IdCard color={colors.primary} size={16} />} onPress={onProfile} /> : null}
           </View>
+          {access?.kind === 'authorized' ? (
+            <Text style={[{ color: colors.textMuted, fontSize: fs(12) }, inter('medium')]}>{access.detail} · compartilhada com você</Text>
+          ) : null}
         </View>
       </Card>
     </Animated.View>

@@ -1,0 +1,151 @@
+// Regras puras da autorização de edição e da gestão de admins (testáveis sem Supabase).
+
+export const PRIMARY_ADMIN_EMAIL = 'previaemailofc@gmail.com';
+export const EDIT_REASON_MAX = 300;
+export const ADMIN_NAME_MAX = 80;
+
+export type EditRequestStatus = 'pending' | 'approved' | 'denied' | 'revoked';
+
+export interface EditRequestRow {
+  id: string;
+  link_id: string;
+  link_name: string;
+  status: EditRequestStatus;
+  reason?: string | null;
+  requested_at: string;
+  reviewed_at?: string | null;
+  expires_at?: string | null;
+}
+
+const CODE_RE = /^[A-Z0-9]{4,8}$/;
+
+/**
+ * Código da plaquinha a partir do texto digitado/colado ou da URL lida na tag/QR.
+ * Aceita o código puro, a URL curta (`/functions/v1/redirect/<ID>`, com ou sem `?s=nfc`) e a página `/p/<ID>`.
+ */
+export function parsePlaquinhaCode(raw: string | null | undefined): string | null {
+  const text = (raw ?? '').trim();
+  if (!text) {
+    return null;
+  }
+  const plain = text.toUpperCase();
+  if (CODE_RE.test(plain)) {
+    return plain;
+  }
+  let path: string;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return null;
+    }
+    path = url.pathname;
+  } catch {
+    return null;
+  }
+  const match = /\/functions\/v1\/redirect\/([^/]+)\/?$/.exec(path) ?? /^\/p\/([^/]+)\/?$/.exec(path);
+  if (!match?.[1]) {
+    return null;
+  }
+  let code: string;
+  try {
+    code = decodeURIComponent(match[1]).toUpperCase();
+  } catch {
+    return null;
+  }
+  return CODE_RE.test(code) ? code : null;
+}
+
+export type EditBadgeKind = 'waiting' | 'authorized' | 'denied' | 'revoked' | 'expired';
+
+export interface EditBadge {
+  kind: EditBadgeKind;
+  label: string;
+  tone: 'warning' | 'success' | 'error' | 'muted';
+  detail: string;
+  /** Editar destino e gravar NFC liberados. */
+  canEdit: boolean;
+  /** Pode mandar um pedido novo para a mesma plaquinha. */
+  canRequestAgain: boolean;
+}
+
+export function isExpired(expiresAt: string | null | undefined, now: Date = new Date()): boolean {
+  if (!expiresAt) {
+    return false;
+  }
+  const time = new Date(expiresAt).getTime();
+  return Number.isFinite(time) && time <= now.getTime();
+}
+
+export function editBadge(request: Pick<EditRequestRow, 'status' | 'expires_at'>, now: Date = new Date()): EditBadge {
+  switch (request.status) {
+    case 'pending':
+      return { kind: 'waiting', label: 'Aguardando', tone: 'warning', detail: 'Aguardando aprovação do administrador', canEdit: false, canRequestAgain: false };
+    case 'approved':
+      if (isExpired(request.expires_at, now)) {
+        return { kind: 'expired', label: 'Expirado', tone: 'muted', detail: 'O prazo de edição terminou', canEdit: false, canRequestAgain: true };
+      }
+      return { kind: 'authorized', label: 'Autorizado', tone: 'success', detail: request.expires_at ? `Edição liberada até ${formatDatePtBr(request.expires_at)}` : 'Edição liberada', canEdit: true, canRequestAgain: false };
+    case 'denied':
+      return { kind: 'denied', label: 'Negado', tone: 'error', detail: 'Acesso negado pelo administrador', canEdit: false, canRequestAgain: true };
+    default:
+      return { kind: 'revoked', label: 'Revogado', tone: 'error', detail: 'Acesso revogado pelo administrador', canEdit: false, canRequestAgain: true };
+  }
+}
+
+/** Mais recente por plaquinha: um card por link, com o status atual. */
+export function latestByLink<T extends Pick<EditRequestRow, 'link_id' | 'requested_at'>>(rows: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    const current = latest.get(row.link_id);
+    if (!current || new Date(row.requested_at).getTime() > new Date(current.requested_at).getTime()) {
+      latest.set(row.link_id, row);
+    }
+  }
+  return [...latest.values()].sort((a, b) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime());
+}
+
+export type ExpiryChoice = 'none' | '7' | '30';
+
+export const EXPIRY_OPTIONS: { value: ExpiryChoice; label: string }[] = [
+  { value: 'none', label: 'Sem prazo' },
+  { value: '7', label: '7 dias' },
+  { value: '30', label: '30 dias' },
+];
+
+export function expiresAtFor(choice: ExpiryChoice, now: Date = new Date()): string | null {
+  if (choice === 'none') {
+    return null;
+  }
+  return new Date(now.getTime() + Number(choice) * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export function normalizeEmail(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+export type RemoveAdminCheck = { ok: true } | { ok: false; reason: string };
+
+/** Espelha remove_admin() no banco: a UI esconde/avisa, o servidor decide. */
+export function canRemoveAdmin(input: { target: string; self: string | null | undefined; total: number }): RemoveAdminCheck {
+  const target = normalizeEmail(input.target);
+  if (target === normalizeEmail(input.self)) {
+    return { ok: false, reason: 'Você não pode remover a si mesmo.' };
+  }
+  if (target === PRIMARY_ADMIN_EMAIL) {
+    return { ok: false, reason: 'O administrador principal não pode ser removido.' };
+  }
+  if (input.total <= 1) {
+    return { ok: false, reason: 'É preciso manter pelo menos um administrador.' };
+  }
+  return { ok: true };
+}
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+export function formatDatePtBr(value: string | null | undefined): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+}

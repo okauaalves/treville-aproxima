@@ -165,6 +165,7 @@ export default function PlaquinhaQrScreen() {
 
   const title = link ? `QR Code — ${link.name}` : 'QR Code';
   const type = link && isDestinationType(link.destination_type) ? link.destination_type : 'url';
+  const owner = !link?.user_id || link.user_id === user?.id;
 
   return (
     <Screen>
@@ -237,30 +238,36 @@ export default function PlaquinhaQrScreen() {
             <ScanChart days={stats.days} max={stats.maxPerDay} />
           </Section>
 
-          <Section title="Página de perfil">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
-              <Text style={[{ flex: 1, color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
-                {link.profile_enabled ? 'O scan abre sua mini página de links.' : 'O scan vai direto ao destino.'}
-              </Text>
-            </View>
-            <PrimaryButton label="Editar perfil" variant="secondary" fullWidth style={{ marginTop: 12 }} onPress={() => push(`/perfil/links/${link.id}`)} />
-          </Section>
+          {owner ? (
+            <>
+              <Section title="Página de perfil">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {link.profile_enabled ? <Pill label="Perfil ativo" tone="violet" /> : <Pill label="Link direto" tone="primary" />}
+                  <Text style={[{ flex: 1, color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
+                    {link.profile_enabled ? 'O scan abre sua mini página de links.' : 'O scan vai direto ao destino.'}
+                  </Text>
+                </View>
+                <PrimaryButton label="Editar perfil" variant="secondary" fullWidth style={{ marginTop: 12 }} onPress={() => push(`/perfil/links/${link.id}`)} />
+              </Section>
 
-          <WebhookSection key={`${link.id}:${link.webhook_url ?? ''}`} link={link} onSaved={(webhookUrl) => setLink({ ...link, webhook_url: webhookUrl })} />
+              <WebhookSection key={`${link.id}:${link.webhook_url ?? ''}`} link={link} onSaved={(webhookUrl) => setLink({ ...link, webhook_url: webhookUrl })} />
+            </>
+          ) : null}
 
           <View style={{ gap: 10, marginTop: 18 }}>
             <PrimaryButton label="Compartilhar QR" fullWidth loading={busy === 'share'} icon={<Share2 color={colors.onPrimary} size={20} />} onPress={() => void share()} />
             <PrimaryButton label="Gravar na tag NFC" variant="secondary" fullWidth icon={<Nfc color={colors.primary} size={20} />} onPress={() => void gravarPlaquinhaNaTag(link.id)} />
-            <PrimaryButton
-              label={link.is_active ? 'Desativar' : 'Ativar'}
-              variant="ghost"
-              tone={link.is_active ? 'danger' : undefined}
-              fullWidth
-              loading={busy === 'toggle'}
-              icon={<Power color={link.is_active ? colors.danger : colors.primary} size={20} />}
-              onPress={() => void toggle()}
-            />
+            {owner ? (
+              <PrimaryButton
+                label={link.is_active ? 'Desativar' : 'Ativar'}
+                variant="ghost"
+                tone={link.is_active ? 'danger' : undefined}
+                fullWidth
+                loading={busy === 'toggle'}
+                icon={<Power color={link.is_active ? colors.danger : colors.primary} size={20} />}
+                onPress={() => void toggle()}
+              />
+            ) : null}
           </View>
         </ScrollView>
       )}

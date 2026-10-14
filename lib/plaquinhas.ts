@@ -164,14 +164,29 @@ export async function createPlaquinha(input: { name: string; destinationUrl: str
   throw new PlaquinhaError('Não foi possível gerar um código livre. Tente de novo.');
 }
 
+const NO_EDIT_PERMISSION = 'Você não tem permissão para editar esta plaquinha. Solicite acesso ao administrador.';
+
+/** Dono, admin ou edição aprovada no prazo (can_edit_link). O banco repete a checagem (RLS + trigger). */
 export async function updateDestino(linkId: string, newUrl: string, type: DestinationType): Promise<void> {
   const destination = validDestination(newUrl);
-  const { error } = await client()
+  const db = client();
+  const { data: allowed, error: checkError } = await db.rpc('can_edit_link', { link_id_param: linkId });
+  if (!checkError && allowed === false) {
+    throw new PlaquinhaError(NO_EDIT_PERMISSION);
+  }
+  const { data, error } = await db
     .from('redirect_links')
     .update({ destination_url: destination, destination_type: type, updated_at: new Date().toISOString() })
-    .eq('id', linkId);
+    .eq('id', linkId)
+    .select('id');
   if (error) {
+    if (error.code === '42501') {
+      throw new PlaquinhaError(error.message || NO_EDIT_PERMISSION);
+    }
     throw friendly(error, 'Não foi possível salvar o destino.');
+  }
+  if (!data?.length) {
+    throw new PlaquinhaError(NO_EDIT_PERMISSION);
   }
 }
 

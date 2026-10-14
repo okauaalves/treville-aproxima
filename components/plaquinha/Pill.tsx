@@ -5,7 +5,7 @@ import { ContentTypeColors } from '@/theme/colors';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
-export type PillTone = 'success' | 'primary' | 'muted' | 'warning' | 'violet';
+export type PillTone = 'success' | 'primary' | 'muted' | 'warning' | 'violet' | 'error';
 
 export function Pill({ label, tone, icon }: { label: string; tone: PillTone; icon?: ReactNode }) {
   const { colors, fs, isDark } = useTheme();
@@ -15,6 +15,7 @@ export function Pill({ label, tone, icon }: { label: string; tone: PillTone; ico
     primary: { bg: colors.primaryGlow, fg: colors.primary },
     muted: { bg: colors.backgroundSecondary, fg: colors.textSecondary },
     warning: { bg: colors.warningBg, fg: colors.warning },
+    error: { bg: colors.errorBg, fg: colors.error },
     violet: { bg: isDark ? 'rgba(167,139,250,0.16)' : 'rgba(124,58,237,0.10)', fg: violet },
   }[tone];
   return (

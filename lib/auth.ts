@@ -16,11 +16,20 @@ function isMissingTable(error: { code?: string; status?: number; message?: strin
   return error.code === 'PGRST205' || error.code === '42P01' || error.status === 404;
 }
 
+/** is_admin() no servidor (JWT + tabela admins + e-mail confirmado); sem a RPC, cai na consulta da tabela. */
 async function queryAdmin(email: string): Promise<boolean> {
   if (!supabase) {
     return false;
   }
   try {
+    const rpc = await supabase.rpc('is_admin');
+    if (!rpc.error) {
+      return rpc.data === true;
+    }
+    if (rpc.error.code !== 'PGRST202' && rpc.error.code !== '42883') {
+      console.warn('[admin] falha ao consultar is_admin:', rpc.error.message);
+      return false;
+    }
     const { data, error, status } = await supabase.from('admins').select('email').eq('email', email).maybeSingle();
     if (error) {
       if (!isMissingTable({ ...error, status })) {
