@@ -9,6 +9,7 @@ import {
 } from '@/core/offline/database';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { logger } from '@/utils/logger';
 
 /**
  * Envio/recebimento de `operations` e `templates` com o Supabase. Desligado enquanto essas tabelas não
@@ -154,7 +155,7 @@ export async function syncIfOnline(): Promise<void> {
     await syncOperations(userId);
     await syncTemplates(userId);
   } catch (error) {
-    console.warn('Falha silenciosa na sincronização', error);
+    logger.warn('Falha na sincronização', error);
   } finally {
     syncInProgress = false;
   }

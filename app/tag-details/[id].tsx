@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { ReadOnlyBadge } from '@/components/nfc/ReadOnlyBadge';
 import { RfidNotice } from '@/components/nfc/RfidNotice';
 import { ShareSheet } from '@/components/nfc/ShareSheet';
+import { SuspiciousLinkWarning } from '@/components/nfc/SuspiciousLinkWarning';
 import { useTagTools } from '@/components/nfc/TagTools';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Card } from '@/components/ui/Card';
@@ -20,6 +21,7 @@ import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { buildTechnicalReport, buildTechnicalSnapshot, chipLabel, recordsFromSnapshot, summarizeRecords } from '@/core/nfc/technical';
 import { assessNfc } from '@/core/nfc/readiness';
 import { getOperationById } from '@/core/offline/database';
+import { assessUrl } from '@/core/validation/urlSafety';
 import { operationLabel, statusLabel } from '@/core/offline/mappers';
 import { useUidHash } from '@/hooks/useUidHash';
 import { openNfcFlow } from '@/lib/nfcEntry';
@@ -167,6 +169,7 @@ export default function TagDetailsScreen() {
       ? savedPayloads.map((item, index) => ({ label: `Registro ${index + 1} · ${CONTENT_TYPE_META[item.contentType]?.name ?? item.contentType}`, value: fieldsOf(item)[0]?.value ?? '—' }))
       : fieldsOf(payload);
   const href = linkOf(payload, raw);
+  const hrefSafety = assessUrl(href);
   const sourceRecords = useMemo(() => (live ? liveTag?.ndefRecords ?? [] : snapshot ? recordsFromSnapshot(snapshot) : []), [live, liveTag, snapshot]);
   const summary = summarizeRecords(sourceRecords);
   const isRfid = live && liveTag !== null && !liveTag.capabilities.supportsNdef;
@@ -235,7 +238,10 @@ export default function TagDetailsScreen() {
               </View>
             ))}
             {live && liveRecords.length === 0 ? <Text style={{ color: colors.textSecondary, marginBottom: 6 }}>A tag não tem registros NDEF. Ela está pronta para receber conteúdo.</Text> : null}
-            {href ? <PrimaryButton label="Testar link" variant="secondary" icon={<ExternalLink color={colors.primary} size={16} />} onPress={() => void Linking.openURL(href)} /> : null}
+            {href && hrefSafety.suspicious ? <SuspiciousLinkWarning url={href} safety={hrefSafety} /> : null}
+            {href && !hrefSafety.suspicious ? (
+              <PrimaryButton label="Testar link" variant="secondary" icon={<ExternalLink color={colors.primary} size={16} />} onPress={() => void Linking.openURL(href).catch(() => undefined)} />
+            ) : null}
           </Card>
         )}
 

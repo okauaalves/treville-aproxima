@@ -1,4 +1,5 @@
 import type { TechnicalSnapshot } from '@/core/nfc/technical';
+import type { PruneOptions } from '@/core/offline/retention';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation, OperationKind, OperationStatus } from '@/types/history';
 import type { NfcPayload } from '@/types/nfc';
@@ -56,6 +57,7 @@ export interface DatabaseApi {
   setSetting(key: string, value: string): Promise<void>;
   getAllSettings(): Promise<Record<string, string>>;
   applyHistoryRetention(days: number): Promise<void>;
+  pruneOldOperations(options?: PruneOptions): Promise<number>;
   listUnsyncedOperations(limit: number): Promise<Operation[]>;
   markOperationsSynced(ids: string[]): Promise<void>;
   listDirtyTemplates(): Promise<NfcTemplate[]>;

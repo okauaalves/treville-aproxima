@@ -24,6 +24,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
+import { logger } from '@/utils/logger';
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 48, gap: 10 }}>{children}</View>;
@@ -71,7 +72,7 @@ export default function PlaquinhasScreen() {
       setRequests(mine);
       setShared(await getSharedPlaquinhas(mine));
     } catch (failure) {
-      console.warn('Falha ao carregar plaquinhas compartilhadas', failure);
+      logger.warn('Falha ao carregar plaquinhas compartilhadas', failure);
       setRequests([]);
       setShared([]);
     }
@@ -95,7 +96,7 @@ export default function PlaquinhasScreen() {
         goToLogin();
         return;
       }
-      console.warn('Falha ao carregar plaquinhas', failure);
+      logger.warn('Falha ao carregar plaquinhas', failure);
       setLinks([]);
     }
     setLoading(false);

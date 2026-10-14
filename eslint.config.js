@@ -12,6 +12,13 @@ module.exports = defineConfig([
     },
   },
   {
+    files: ["{app,components,core,lib,hooks,stores,utils,constants}/**/*.{js,ts,tsx}"],
+    ignores: ["utils/logger.ts"],
+    rules: {
+      "no-console": "error",
+    },
+  },
+  {
     files: ["supabase/functions/**/*.ts"],
     rules: {
       "import/no-unresolved": "off",

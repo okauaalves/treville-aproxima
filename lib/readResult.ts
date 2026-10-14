@@ -4,6 +4,7 @@ import { nfcManager } from '@/core/nfc/NfcManager';
 import { setPendingRead } from '@/core/nfc/pendingRead';
 import { buildTechnicalSnapshot } from '@/core/nfc/technical';
 import { saveOperation, saveTag } from '@/core/offline/database';
+import { assessUrl, SAFE_URL, type UrlSafety } from '@/core/validation/urlSafety';
 import { push, replace } from '@/lib/navigation';
 import { useNfcStore } from '@/stores/nfcStore';
 import type { NfcTag, ParsedRecord } from '@/types/nfc';
@@ -39,6 +40,8 @@ export interface ReadSummary {
   href: string | null;
   copyValue: string;
   shareText: string;
+  /** Risco do `href`: com `suspicious` a UI mostra o aviso e só abre com confirmação; `blocked` nunca abre. */
+  safety: UrlSafety;
 }
 
 export async function persistReadOperation(tag: NfcTag, records: ParsedRecord[]) {
@@ -119,7 +122,7 @@ function isEmptyRecord(record: ParsedRecord): boolean {
   return record.contentType === 'CUSTOM' && !record.rawValue && !record.data.text && !record.data.cardTitle;
 }
 
-function summarizeUrl(raw: string): Omit<ReadSummary, 'copyValue' | 'shareText'> {
+function summarizeUrl(raw: string): Omit<ReadSummary, 'copyValue' | 'shareText' | 'safety'> {
   const url = parseUrl(raw);
   const host = url?.hostname.replace(/^www\./i, '').toLowerCase() ?? '';
   if (url && (host === 'instagram.com' || host === 'instagr.am')) {
@@ -138,12 +141,12 @@ export function summarizeRead(tag: NfcTag | null, records: ParsedRecord[]): Read
   const first = meaningful[0];
   if (!first) {
     if (tag && !tag.capabilities.supportsNdef) {
-      return { kind: 'rfid', title: 'Tag sem dados', highlight: 'Nenhum conteúdo legível', detail: null, href: null, copyValue: '', shareText: '' };
+      return { kind: 'rfid', title: 'Tag sem dados', highlight: 'Nenhum conteúdo legível', detail: null, href: null, copyValue: '', shareText: '', safety: SAFE_URL };
     }
-    return { kind: 'empty', title: 'Tag vazia', highlight: 'Pronta para gravar', detail: null, href: null, copyValue: '', shareText: '' };
+    return { kind: 'empty', title: 'Tag vazia', highlight: 'Pronta para gravar', detail: null, href: null, copyValue: '', shareText: '', safety: SAFE_URL };
   }
   const data = first.data;
-  let base: Omit<ReadSummary, 'copyValue' | 'shareText'>;
+  let base: Omit<ReadSummary, 'copyValue' | 'shareText' | 'safety'>;
   let copyValue = first.rawValue || first.displayValue;
   switch (first.contentType) {
     case 'WHATSAPP': {
@@ -205,5 +208,13 @@ export function summarizeRead(tag: NfcTag | null, records: ParsedRecord[]): Read
       copyValue = data.text || first.displayValue;
   }
   const shareText = [base.title, base.highlight, base.href && base.href !== base.highlight ? base.href : null].filter(Boolean).join('\n');
-  return { ...base, copyValue, shareText };
+  return { ...base, copyValue, shareText, safety: mergeSafety(assessUrl(base.href), first) };
+}
+
+function mergeSafety(safety: UrlSafety, record: ParsedRecord): UrlSafety {
+  if (!record.isSuspicious) {
+    return safety;
+  }
+  const reasons = [...new Set([...safety.reasons, ...(record.suspiciousReasons ?? [])])];
+  return { suspicious: true, blocked: safety.blocked || assessUrl(record.rawValue).blocked, reasons };
 }

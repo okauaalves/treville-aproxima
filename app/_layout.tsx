@@ -18,9 +18,10 @@ import {
 
 import { AnimatedSplash } from '@/components/brand/AnimatedSplash';
 import { Toast } from '@/components/ui/Toast';
-import { initDatabase } from '@/core/offline/database';
+import { validateConfig } from '@/constants/config';
+import { initDatabase, pruneOldOperations } from '@/core/offline/database';
 import { nfcManager } from '@/core/nfc/NfcManager';
-import { startAutoSync, syncIfOnline } from '@/core/offline/syncEngine';
+import { REMOTE_SYNC_ENABLED, startAutoSync, syncIfOnline } from '@/core/offline/syncEngine';
 import { decideGate } from '@/lib/access';
 import { restoreLocalSession } from '@/lib/authActions';
 import { readOnboardingDone } from '@/lib/bootRoute';
@@ -30,6 +31,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useBootStore } from '@/stores/bootStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { AppThemeProvider, useTheme } from '@/theme/ThemeContext';
+import { logger } from '@/utils/logger';
 
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({
@@ -122,7 +124,10 @@ function BootShell() {
   useEffect(() => {
     let alive = true;
     void (async () => {
+      validateConfig();
       await initDatabase();
+      // Com o envio ao Supabase desligado, `synced` nunca vira 1: proteger "não enviadas" travaria a limpeza.
+      await pruneOldOperations({ keepUnsynced: REMOTE_SYNC_ENABLED }).catch((error: unknown) => logger.warn('Falha ao limpar o histórico', error));
       await nfcManager.initialize();
       await useSettingsStore.getState().loadFromDatabase();
       const seen = await readOnboardingDone(AsyncStorage);

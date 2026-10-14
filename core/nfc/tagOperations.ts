@@ -62,7 +62,7 @@ const KIND: Record<TagOperation, OperationKind> = { clone: 'CLONE', lock: 'LOCK'
 const TITLES: Record<TagOperation, string> = { clone: 'Clonar tag', lock: 'Travar tag', format: 'Formatar como NDEF', erase: 'Apagar tag' };
 
 async function detect(techs: string[], alertMessage: string): Promise<NfcTag> {
-  await nfcManager.requestTechnology(techs, { alertMessage });
+  await nfcManager.requestTechnologyWithTimeout(techs, undefined, { alertMessage });
   const raw = await nfcManager.getTag();
   if (!raw) {
     throw new NfcError('READ_FAILED', 'Tag não encontrada');

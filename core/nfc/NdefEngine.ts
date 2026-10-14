@@ -5,6 +5,7 @@ import type { ContentType } from '@/theme/colors';
 import { buildCustomCardBody, isCustomCardVCard, parseCustomCard } from '@/core/nfc/customCard';
 import { Ndef } from '@/core/nfc/nfcNative';
 import { cleanPhone, emailUri, mapsUrl, phoneUri, whatsAppUrl } from '@/core/nfc/uriBuilders';
+import { assessUrl } from '@/core/validation/urlSafety';
 import type { NfcPayload, ParsedRecord, WifiSecurity } from '@/types/nfc';
 
 const AUTH: Record<WifiSecurity, number[]> = {
@@ -278,8 +279,15 @@ export class NdefEngine {
     return recordOf('CUSTOM', 'Personalizado', raw, raw, { contentType: 'CUSTOM', text: raw });
   }
 
+  /** Conteúdo da tag não é confiável: marca a URL de risco para a UI avisar em vez de abrir. */
   parseUriRecord(record: NdefRecord): ParsedRecord {
     const url = Ndef.uri.decodePayload(Uint8Array.from(asBytes(record.payload)));
+    const parsed = this.parseUri(url);
+    const safety = assessUrl(url);
+    return safety.suspicious ? { ...parsed, isSuspicious: true, suspiciousReasons: safety.reasons } : parsed;
+  }
+
+  private parseUri(url: string): ParsedRecord {
     const contentType = detectContentType(url);
     if (contentType === 'WHATSAPP') {
       const parsed = new URL(url);

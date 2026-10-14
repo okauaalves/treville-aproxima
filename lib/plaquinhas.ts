@@ -1,5 +1,6 @@
 import { getRandomBytes } from 'expo-crypto';
 
+import { Config } from '@/constants/config';
 import { sanitizeText, sanitizeUrl, validateLinkId, validateWebhookUrl } from '@/core/validation/securityValidator';
 import {
   buildLinkUrl,
@@ -7,7 +8,6 @@ import {
   PLAQUINHA_NAME_MAX,
   profilePageUrl,
   resolveProfilePageBase,
-  resolveRedirectBase,
   type DestinationType,
   type RedirectLink,
   type ScanLog,
@@ -38,7 +38,7 @@ export {
 } from '@/lib/plaquinhaLogic';
 export type { DestinationForm, DestinationType, RedirectLink, ScanDay, ScanLog, ScanStats, SyncStatus } from '@/lib/plaquinhaLogic';
 
-export const BASE_URL = resolveRedirectBase(process.env.EXPO_PUBLIC_SUPABASE_URL);
+export const BASE_URL = Config.redirectBase;
 export const PROFILE_PAGE_BASE = resolveProfilePageBase(process.env.EXPO_PUBLIC_PROFILE_PAGE_URL);
 
 /** Endereço público da mini página (EAS Hosting). Não conta scan: quem conta é a URL curta. */

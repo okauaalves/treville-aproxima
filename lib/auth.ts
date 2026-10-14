@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { AppUser } from '@/types/auth';
+import { logger } from '@/utils/logger';
 
 type AdminCandidate = Pick<AppUser, 'id' | 'email' | 'app_metadata'> | null | undefined;
 
@@ -27,19 +28,19 @@ async function queryAdmin(email: string): Promise<boolean> {
       return rpc.data === true;
     }
     if (rpc.error.code !== 'PGRST202' && rpc.error.code !== '42883') {
-      console.warn('[admin] falha ao consultar is_admin:', rpc.error.message);
+      logger.warn('[admin] falha ao consultar is_admin', rpc.error.code);
       return false;
     }
     const { data, error, status } = await supabase.from('admins').select('email').eq('email', email).maybeSingle();
     if (error) {
       if (!isMissingTable({ ...error, status })) {
-        console.warn('[admin] falha ao consultar admins:', error.message);
+        logger.warn('[admin] falha ao consultar admins', error.code);
       }
       return false;
     }
     return !!data;
   } catch (failure) {
-    console.warn('[admin] falha ao consultar admins:', failure instanceof Error ? failure.message : failure);
+    logger.warn('[admin] consulta de admins', failure);
     return false;
   }
 }

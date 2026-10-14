@@ -98,7 +98,7 @@ export class NfcWriter {
     try {
       const bytes = this.validateBeforeWrite(payload, tag);
       if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.Ndef]);
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       }
       await nfcManager.writeNdef(bytes);
       return { success: true, bytesWritten: bytes.length, duration: Date.now() - started };
@@ -119,7 +119,7 @@ export class NfcWriter {
       this.ensureWritable(tag, ndefMessageSize(records));
       const bytes = encodeRecords(records);
       if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.Ndef]);
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       }
       await nfcManager.writeNdef(bytes);
       return { success: true, bytesWritten: bytes.length, duration: Date.now() - started };
@@ -194,7 +194,7 @@ export class NfcWriter {
         }
       }
       if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.Ndef]);
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       }
       const locked = await nfcManager.makeReadOnly();
       if (!locked) {
@@ -232,7 +232,7 @@ export class NfcWriter {
         throw new NfcError('OPERATION_NOT_SUPPORTED', 'Este chip não aceita formatação NDEF pelo Android.');
       }
       if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.NdefFormatable], { alertMessage: 'Aproxime a tag para formatar' });
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.NdefFormatable], undefined, { alertMessage: 'Aproxime a tag para formatar' });
       }
       const bytes = encodeRecords([Ndef.record(Ndef.TNF_EMPTY, '', [], [])]);
       await nfcManager.formatNdef(bytes);
@@ -268,7 +268,7 @@ export class NfcWriter {
       const empty = Ndef.record(Ndef.TNF_EMPTY, '', [], []);
       const bytes = encodeRecords([empty]);
       if (!nfcManager.isSessionOpen()) {
-        await nfcManager.requestTechnology([NfcTech.Ndef]);
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       }
       await nfcManager.writeNdef(bytes);
       await nfcManager.cancelRequest();

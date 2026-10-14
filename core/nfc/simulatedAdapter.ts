@@ -38,6 +38,16 @@ export function buildSimulatedTag(kind: NfcSimulationKind): SimTag {
       isWritable: false,
     };
   }
+  if (kind === 'suspicious') {
+    return {
+      id: '04C1D2E3F4A5B6',
+      maxSize: 144,
+      type: 'NTAG213',
+      techTypes: ['android.nfc.tech.NfcA', 'android.nfc.tech.MifareUltralight', 'android.nfc.tech.Ndef'],
+      ndefMessage: [Ndef.uriRecord('https://xn--80ak6aa92e.com/baixar/app-atualizado.apk?ref=tag')],
+      isWritable: true,
+    };
+  }
   return {
     id: kind === 'empty' ? '04F1E2D3C4B5A6' : '04A2B3C4D5E6',
     maxSize: 144,

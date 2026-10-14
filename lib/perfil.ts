@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
+import { Config } from '@/constants/config';
 import { EMPTY_PROFILE, validateProfileForm, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfilLogic';
 import { friendly, PlaquinhaError, SessionError } from '@/lib/plaquinhas';
 import { supabase } from '@/lib/supabase';
@@ -55,7 +56,7 @@ export async function updateProfile(input: { displayName: string; bio: string; t
   }
   const row: Record<string, unknown> = { id: userId, ...check.value, updated_at: new Date().toISOString() };
   if (input.avatarUrl !== undefined) {
-    if (input.avatarUrl !== null && !isAllowedAvatarUrl(input.avatarUrl, process.env.EXPO_PUBLIC_SUPABASE_URL)) {
+    if (input.avatarUrl !== null && !isAllowedAvatarUrl(input.avatarUrl, Config.supabaseUrl)) {
       throw new PlaquinhaError('Foto inválida. Envie de novo.');
     }
     row.avatar_url = input.avatarUrl;

@@ -16,7 +16,8 @@ import { deviceChecks, type DeviceCheck } from '@/core/nfc/deviceStatus';
 import { assessNfc } from '@/core/nfc/readiness';
 import { ReaderModeBadge } from '@/components/nfc/ReaderModeBadge';
 import { ndefEngine } from '@/core/nfc/NdefEngine';
-import { nfcManager } from '@/core/nfc/NfcManager';
+import { errorMessages } from '@/core/nfc/errors';
+import { NFC_DIAGNOSTIC_TIMEOUT_MS, nfcManager } from '@/core/nfc/NfcManager';
 import { setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { chipLabel, classifyTag, summarizeRecords } from '@/core/nfc/technical';
@@ -37,6 +38,8 @@ export default function DiagnosticsScreen() {
   const [report, setReport] = useState<DiagnosticReportData | null>(null);
   const [waiting, setWaiting] = useState(false);
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
+  const [timedOut, setTimedOut] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tag = report?.tag ?? null;
   const uidHash = useUidHash(tag?.uid);
 
@@ -44,9 +47,20 @@ export default function DiagnosticsScreen() {
     void deviceChecks().then(setChecks);
   }, []);
 
+  function clearTimer() {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  }
+
   useEffect(() => {
     const api = nfcRef.current;
+    const pending = timer;
     return () => {
+      if (pending.current) {
+        clearTimeout(pending.current);
+      }
       void api.unregisterTagEvent('diagnostics');
     };
   }, []);
@@ -72,6 +86,8 @@ export default function DiagnosticsScreen() {
       replace(`/nfc-unavailable?intent=read&reason=${assessment.reason ?? 'unsupported'}`);
       return;
     }
+    clearTimer();
+    setTimedOut(false);
     setWaiting(true);
     setReport(null);
     nfcManager.rearmReading();
@@ -79,14 +95,24 @@ export default function DiagnosticsScreen() {
     // tag encostada faria o Android abrir o link ou reabrir o app pelo intent.
     await nfc.registerTagEvent(
       async (detected) => {
+        clearTimer();
         const result = await nfcRef.current.runDiagnostic(detected);
         show(detected, result);
         setWaiting(false);
       },
-      () => setWaiting(false),
+      () => {
+        clearTimer();
+        setWaiting(false);
+      },
       'diagnostics',
       { once: true },
     );
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setWaiting(false);
+      setTimedOut(true);
+      void nfcRef.current.unregisterTagEvent('diagnostics');
+    }, NFC_DIAGNOSTIC_TIMEOUT_MS);
   }
 
   const tagClass = tag ? classifyTag(tag.technologies, tag.capabilities.supportsNdef) : null;
@@ -107,6 +133,7 @@ export default function DiagnosticsScreen() {
           <StatusCard key={item.id} title={item.label} subtitle={item.ok ? item.reason : `${item.reason} ${item.solution}`} />
         ))}
         <PrimaryButton label={waiting ? 'Aproxime a tag' : report ? 'Ler novamente' : 'Iniciar diagnóstico'} onPress={() => void start()} disabled={waiting} />
+        {timedOut ? <Text style={[{ color: colors.error, fontSize: fs(14) }, inter('semibold')]}>{errorMessages.TIMEOUT}</Text> : null}
         {nfc.simulationAvailable && nfc.simulateTag && waiting ? (
           <View style={{ gap: 8 }}>
             <PrimaryButton label="Simular tag (modo de teste)" variant="secondary" onPress={() => nfc.simulateTag?.('default')} />

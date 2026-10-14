@@ -123,6 +123,9 @@ export interface ParsedRecord {
   displayValue: string;
   rawValue: string;
   data: WritePayload;
+  /** URL de risco (javascript:, data:, intent:, download de .apk/.exe, punycode). Nunca abrir sem aviso. */
+  isSuspicious?: boolean;
+  suspiciousReasons?: string[];
 }
 
 export interface ReadResult {
@@ -174,4 +177,4 @@ export interface WriteFlowResult {
   qrValue?: string | null;
 }
 
-export type NfcSimulationKind = 'default' | 'unsupported' | 'locked' | 'empty' | 'rfid';
+export type NfcSimulationKind = 'default' | 'unsupported' | 'locked' | 'empty' | 'rfid' | 'suspicious';

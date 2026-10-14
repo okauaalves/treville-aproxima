@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 
 import type { SaveOperationInput, SaveTagInput, SaveTemplateInput } from '@/core/offline/contracts';
 import { mapOperationRow, mapTemplateRow, matchesHistoryFilter, safeStringify, type OperationRow, type TagRow, type TemplateRow } from '@/core/offline/mappers';
+import { pruneRows, type PruneOptions } from '@/core/offline/retention';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation } from '@/types/history';
 import type { NfcTemplate } from '@/types/template';
@@ -312,6 +313,17 @@ export async function applyHistoryRetention(days: number): Promise<void> {
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
   state.operations = state.operations.filter((row) => row.created_at >= cutoff);
   await persist();
+}
+
+export async function pruneOldOperations(options?: PruneOptions): Promise<number> {
+  await initDatabase();
+  const before = state.operations.length;
+  state.operations = pruneRows(state.operations, options);
+  const removed = before - state.operations.length;
+  if (removed > 0) {
+    await persist();
+  }
+  return removed;
 }
 
 export async function listUnsyncedOperations(limit: number): Promise<Operation[]> {

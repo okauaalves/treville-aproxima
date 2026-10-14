@@ -40,7 +40,7 @@ export class NfcReader {
     const openedHere = !nfcManager.isSessionOpen();
     try {
       if (openedHere) {
-        await nfcManager.requestTechnology([NfcTech.Ndef]);
+        await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       }
       const raw = await nfcManager.getTag();
       if (!raw) {
@@ -60,7 +60,7 @@ export class NfcReader {
 
   async readTag(): Promise<ReadResult> {
     try {
-      await nfcManager.requestTechnology([NfcTech.Ndef]);
+      await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
       const raw = await nfcManager.getTag();
       if (!raw) {
         throw new NfcError('READ_FAILED');
@@ -85,7 +85,7 @@ export class NfcReader {
   /** Mantém a sessão Ndef aberta para o NfcWriter reutilizar. O writer fecha no finally. */
   async waitForTag(): Promise<NfcTag> {
     if (!nfcManager.isSessionOpen()) {
-      await nfcManager.requestTechnology([NfcTech.Ndef]);
+      await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef]);
     }
     const raw = await nfcManager.getTag();
     if (!raw) {

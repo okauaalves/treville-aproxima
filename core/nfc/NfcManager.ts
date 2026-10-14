@@ -20,6 +20,17 @@ type Mode = 'native' | 'web' | 'simulated' | 'unavailable';
 export const READER_MODE_FLAGS = ReaderModeFlags.NfcA | ReaderModeFlags.NfcB | ReaderModeFlags.NfcF | ReaderModeFlags.NfcV;
 export const READER_MODE_DELAY_MS = 250;
 const READER_ALERT = 'Aproxime a tag NFC';
+export const NFC_TIMEOUT_MS = 30_000;
+export const NFC_DIAGNOSTIC_TIMEOUT_MS = 60_000;
+
+/** Rejeita com NfcError TIMEOUT ("Tempo esgotado...") se `task` não terminar em `ms`. */
+export function withNfcTimeout<T>(task: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new NfcError('TIMEOUT')), ms);
+  });
+  return Promise.race([task, timeout]).finally(() => clearTimeout(timer));
+}
 
 export type DispatchState = { active: boolean; owner: string | null; techSession: boolean };
 
@@ -180,8 +191,7 @@ export class NfcManagerService {
 
   private timeoutMs(): number {
     const seconds = useSettingsStore.getState().detectionTimeoutSec;
-    const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 30;
-    return safe * 1000;
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : NFC_TIMEOUT_MS;
   }
 
   /**
@@ -297,8 +307,17 @@ export class NfcManagerService {
     await this.stopForegroundDispatch(owner);
   }
 
-  /** Para o dispatch antes de abrir a sessão de tecnologia; a espera pela tag fica fora do mutex. */
-  async requestTechnology(techs: string[], options?: { alertMessage?: string }): Promise<void> {
+  requestTechnology(techs: string[], options?: { alertMessage?: string }): Promise<void> {
+    return this.requestTechnologyWithTimeout(techs, undefined, options);
+  }
+
+  /**
+   * Para o dispatch antes de abrir a sessão de tecnologia; a espera pela tag fica fora do mutex.
+   * Sem tag em `ms` (padrão: ajuste do usuário, 30 s) rejeita com TIMEOUT e cancela o pedido nativo.
+   * A sessão aberta com sucesso fica para o chamador, que fecha com cancelRequest() no finally.
+   */
+  async requestTechnologyWithTimeout(techs: string[], ms?: number, options?: { alertMessage?: string }): Promise<void> {
+    const timeoutMs = ms && ms > 0 ? ms : this.timeoutMs();
     const proceed = await this.exclusive(async () => {
       if (this.sessionOpen || this.techPending) {
         return false;
@@ -312,7 +331,7 @@ export class NfcManagerService {
       return;
     }
     try {
-      await this.openTechnology(techs, options);
+      await this.openTechnology(techs, timeoutMs, options);
       this.sessionOpen = true;
     } finally {
       this.techPending = false;
@@ -320,13 +339,13 @@ export class NfcManagerService {
     }
   }
 
-  private async openTechnology(techs: string[], options?: { alertMessage?: string }): Promise<void> {
+  private async openTechnology(techs: string[], timeoutMs: number, options?: { alertMessage?: string }): Promise<void> {
     if (this.mode === 'unavailable') {
       throw new NfcError('NFC_NOT_SUPPORTED');
     }
     if (this.mode === 'web') {
       try {
-        await webNfc.requestTechnology(this.timeoutMs());
+        await webNfc.requestTechnology(timeoutMs);
         return;
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
@@ -338,7 +357,7 @@ export class NfcManagerService {
     }
     if (this.mode === 'simulated') {
       try {
-        await simulatedNfc.requestTechnology(this.timeoutMs());
+        await simulatedNfc.requestTechnology(timeoutMs);
         return;
       } catch (error) {
         const message = error instanceof Error ? error.message : '';
@@ -352,26 +371,19 @@ export class NfcManagerService {
       throw new NfcError('NFC_NOT_SUPPORTED');
     }
     const native = this.native;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await Promise.race([
+      await withNfcTimeout(
         native.requestTechnology(techs, {
           alertMessage: options?.alertMessage ?? READER_ALERT,
           isReaderModeEnabled: true,
           readerModeFlags: READER_MODE_FLAGS,
           readerModeDelay: READER_MODE_DELAY_MS,
         }),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new NfcError('TIMEOUT')), this.timeoutMs());
-        }),
-      ]);
+        timeoutMs,
+      );
     } catch (error) {
       await native.cancelTechnologyRequest({ throwOnError: false }).catch(() => undefined);
       throw error instanceof NfcError ? error : toNfcError(error);
-    } finally {
-      if (timer) {
-        clearTimeout(timer);
-      }
     }
   }
 

@@ -10,10 +10,10 @@
     "backgroundColor": "#EEF2FF",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nfcmanager.app",
+      "bundleIdentifier": "com.treville.aproxima",
       "backgroundColor": "#EEF2FF",
       "infoPlist": {
-        "NFCReaderUsageDescription": "O Tréville Aproxima usa o NFC para ler, gravar e apagar tags."
+        "NFCReaderUsageDescription": "Usado para ler e gravar tags NFC."
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": [
@@ -22,7 +22,7 @@
       }
     },
     "android": {
-      "package": "com.tagsluiz.nfcmanager",
+      "package": "com.treville.aproxima",
       "versionCode": 1,
       "userInterfaceStyle": "automatic",
       "adaptiveIcon": {

@@ -95,7 +95,7 @@ export async function writeFlow(
 
     current = 'detect';
     onStep('detect', 'active');
-    await nfcManager.requestTechnology([NfcTech.Ndef], { alertMessage: WRITE_ALERT });
+    await nfcManager.requestTechnologyWithTimeout([NfcTech.Ndef], undefined, { alertMessage: WRITE_ALERT });
     const rawTag = await nfcManager.getTag();
     if (!rawTag) {
       throw new NfcError('READ_FAILED', 'Tag não encontrada');

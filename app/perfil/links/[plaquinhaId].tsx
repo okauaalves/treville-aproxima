@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
 import { Toggle } from '@/components/ui/Toggle';
+import { Config } from '@/constants/config';
 import { getProfile, getProfileLinks, LINK_PRESETS, moveItem, normalizeLinkUrl, saveProfileLinks, toggleProfilePage, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfil';
 import { getLinkUrl, getPlaquinha, plaquinhasAvailable, syncProfileFallback, type RedirectLink } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
@@ -142,7 +143,7 @@ export default function ProfileLinksScreen() {
         themeColor: profile?.theme_color,
         links: items.map((item) => ({ title: item.title, url: normalizeLinkUrl(item.icon, item.url), icon: item.icon, is_active: item.is_active })),
       },
-      process.env.EXPO_PUBLIC_SUPABASE_URL,
+      Config.supabaseUrl,
     );
     return renderProfilePage(data, { preview: true });
   }, [items, link, profile]);

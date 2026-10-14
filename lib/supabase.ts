@@ -5,6 +5,7 @@ import { createClient, type Session, type SupabaseClient, type User } from '@sup
 import { AppState, Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 
+import { Config } from '@/constants/config';
 import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, parseAuthCallback } from '@/lib/authCallback';
 import { getAuthRedirect } from '@/lib/authRedirect';
 
@@ -14,8 +15,8 @@ export const ALREADY_REGISTERED_MESSAGE = 'Não foi possível criar a conta com 
 
 WebBrowser.maybeCompleteAuthSession();
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const url = Config.supabaseUrl;
+const anonKey = Config.supabaseAnonKey;
 
 function configured(valueUrl: string | undefined, valueKey: string | undefined): boolean {
   if (!valueUrl || !valueKey) {

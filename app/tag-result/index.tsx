@@ -21,6 +21,7 @@ import {
   Phone,
   RotateCcw,
   Share2,
+  ShieldAlert,
   Smartphone,
   SmartphoneNfc,
   Type,
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react-native';
 
 import { NfcPulse } from '@/components/nfc/NfcPulse';
+import { SuspiciousLinkWarning } from '@/components/nfc/SuspiciousLinkWarning';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
@@ -167,7 +169,7 @@ export default function TagResultScreen() {
   }
 
   async function open() {
-    if (!summary.href) {
+    if (!summary.href || summary.safety.suspicious) {
       return;
     }
     try {
@@ -214,9 +216,11 @@ export default function TagResultScreen() {
             <Text accessibilityRole="header" style={[{ color: WHITE, fontSize: fs(24), marginTop: 14, textAlign: 'center' }, inter('extrabold')]}>
               {summary.title}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(34,197,94,0.14)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.4)' }}>
-              <Text style={[{ color: GREEN, fontSize: fs(13) }, inter('bold')]}>✓ Tag verificada</Text>
-            </View>
+            {summary.safety.suspicious ? null : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(34,197,94,0.14)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.4)' }}>
+                <Text style={[{ color: GREEN, fontSize: fs(13) }, inter('bold')]}>✓ Tag verificada</Text>
+              </View>
+            )}
             <Text selectable numberOfLines={3} style={[{ color: LIGHT_BLUE, fontSize: fs(summary.highlight.length > 28 ? 20 : 26), marginTop: 18, textAlign: 'center' }, inter('extrabold')]}>
               {summary.highlight}
             </Text>
@@ -228,7 +232,8 @@ export default function TagResultScreen() {
           </View>
 
           <View style={{ marginTop: 22, gap: 10 }}>
-            {summary.href ? (
+            {summary.href && summary.safety.suspicious ? <SuspiciousLinkWarning url={summary.href} safety={summary.safety} textColor={WHITE} /> : null}
+            {summary.href && !summary.safety.suspicious ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Abrir ${summary.title}`}
@@ -278,8 +283,13 @@ export default function TagResultScreen() {
                 <NfcPulse size={96} />
                 <Text style={[{ color: WHITE, fontSize: fs(17) }, inter('extrabold')]}>Aproxime a tag</Text>
                 {__DEV__ && nfcManager.isSimulation() ? (
-                  <View style={{ flexDirection: 'row', alignSelf: 'stretch' }}>
-                    <GhostButton label="Simular tag (modo de teste)" icon={Nfc} onPress={() => nfcManager.simulateTag('default')} />
+                  <View style={{ alignSelf: 'stretch', gap: 8 }}>
+                    <View style={{ flexDirection: 'row' }}>
+                      <GhostButton label="Simular tag (modo de teste)" icon={Nfc} onPress={() => nfcManager.simulateTag('default')} />
+                    </View>
+                    <View style={{ flexDirection: 'row' }}>
+                      <GhostButton label="Simular link suspeito (modo de teste)" icon={ShieldAlert} onPress={() => nfcManager.simulateTag('suspicious')} />
+                    </View>
                   </View>
                 ) : null}
               </>

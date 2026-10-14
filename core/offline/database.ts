@@ -4,6 +4,7 @@ import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
 import type { SaveOperationInput, SaveTagInput, SaveTemplateInput } from '@/core/offline/contracts';
 import { mapOperationRow, mapTemplateRow, safeStringify, WRITE_KINDS, type OperationRow, type TemplateRow } from '@/core/offline/mappers';
 import { runMigrations } from '@/core/offline/migrations';
+import { PRUNE_OPERATIONS_SQL, pruneParams, type PruneOptions } from '@/core/offline/retention';
 import type { ContentType } from '@/theme/colors';
 import type { HistoryFilter, Operation } from '@/types/history';
 import type { NfcTemplate } from '@/types/template';
@@ -262,6 +263,12 @@ export async function applyHistoryRetention(days: number): Promise<void> {
   }
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
   await db().runAsync('DELETE FROM operations WHERE created_at < ?', cutoff);
+}
+
+/** Boot: apaga operações com mais de 30 dias e mantém só as 500 mais recentes. Devolve quantas saíram. */
+export async function pruneOldOperations(options?: PruneOptions): Promise<number> {
+  const result = await db().runAsync(PRUNE_OPERATIONS_SQL, ...pruneParams(options));
+  return result.changes;
 }
 
 export async function listUnsyncedOperations(limit: number): Promise<Operation[]> {
