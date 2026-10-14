@@ -48,7 +48,9 @@ create policy users_own_logs on public.scan_logs
     )
   );
 
-create or replace function public.increment_scan_count(link_id text)
+-- Versões posteriores devolvem integer: CREATE OR REPLACE não troca o tipo de retorno.
+drop function if exists public.increment_scan_count(text);
+create function public.increment_scan_count(link_id text)
 returns void
 language sql
 security definer

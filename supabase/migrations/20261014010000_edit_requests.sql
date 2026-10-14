@@ -6,7 +6,7 @@
 -- 1) Admins: nome + seed só do admin principal. Os demais são cadastrados pelo painel.
 alter table public.admins add column if not exists name text;
 alter table public.admins drop constraint if exists admins_name_len;
-alter table public.admins add constraint admins_name_len check (name is null or char_length(name) between 1 and 80);
+alter table public.admins add constraint admins_name_len check (name is null or char_length(name) between 1 and 80) not valid;
 
 insert into public.admins (email, name) values ('previaemailofc@gmail.com', 'Admin principal')
 on conflict (email) do update set name = coalesce(public.admins.name, excluded.name);

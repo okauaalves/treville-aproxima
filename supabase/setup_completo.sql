@@ -15,6 +15,7 @@
 --   - 20261013230000_user_access.sql
 --   - 20261014010000_edit_requests.sql
 --   - 20261014020000_updated_at_triggers.sql
+--   - 20261014030000_schema_compat.sql
 --
 -- Funções que mudam de retorno entre migrações (recebem drop antes de recriar):
 --   - public.increment_scan_count(text)
@@ -190,8 +191,9 @@ create policy users_own_logs on public.scan_logs
     )
   );
 
+-- Versões posteriores devolvem integer: CREATE OR REPLACE não troca o tipo de retorno.
 drop function if exists public.increment_scan_count(text);
-create or replace function public.increment_scan_count(link_id text)
+create function public.increment_scan_count(link_id text)
 returns void
 language sql
 security definer
@@ -237,15 +239,15 @@ alter table public.profiles
   add column if not exists theme_style text not null default 'glass';
 
 alter table public.profiles drop constraint if exists profiles_display_name_len;
-alter table public.profiles add constraint profiles_display_name_len check (display_name is null or char_length(display_name) <= 60);
+alter table public.profiles add constraint profiles_display_name_len check (display_name is null or char_length(display_name) <= 60) not valid;
 alter table public.profiles drop constraint if exists profiles_bio_len;
-alter table public.profiles add constraint profiles_bio_len check (bio is null or char_length(bio) <= 120);
+alter table public.profiles add constraint profiles_bio_len check (bio is null or char_length(bio) <= 120) not valid;
 alter table public.profiles drop constraint if exists profiles_theme_color_hex;
-alter table public.profiles add constraint profiles_theme_color_hex check (theme_color ~ '^#[0-9A-Fa-f]{6}$');
+alter table public.profiles add constraint profiles_theme_color_hex check (theme_color ~ '^#[0-9A-Fa-f]{6}$') not valid;
 alter table public.profiles drop constraint if exists profiles_theme_style_valid;
-alter table public.profiles add constraint profiles_theme_style_valid check (theme_style in ('glass', 'solid'));
+alter table public.profiles add constraint profiles_theme_style_valid check (theme_style in ('glass', 'solid')) not valid;
 alter table public.profiles drop constraint if exists profiles_avatar_url_https;
-alter table public.profiles add constraint profiles_avatar_url_https check (avatar_url is null or (avatar_url ~ '^https://' and char_length(avatar_url) <= 1024));
+alter table public.profiles add constraint profiles_avatar_url_https check (avatar_url is null or (avatar_url ~ '^https://' and char_length(avatar_url) <= 1024)) not valid;
 
 alter table public.profiles enable row level security;
 
@@ -297,7 +299,7 @@ alter table public.redirect_links
 
 alter table public.redirect_links drop constraint if exists redirect_links_webhook_https;
 alter table public.redirect_links add constraint redirect_links_webhook_https
-  check (webhook_url is null or (webhook_url ~ '^https://' and char_length(webhook_url) <= 2048));
+  check (webhook_url is null or (webhook_url ~ '^https://' and char_length(webhook_url) <= 2048)) not valid;
 
 -- Links do perfil (por plaquinha).
 create table if not exists public.profile_links (
@@ -517,7 +519,17 @@ create table if not exists public.admins (
   created_at timestamptz default now()
 );
 
-insert into public.admins (email) values ('previaemailofc@gmail.com')
+-- Tabela criada à mão antes desta migration: completa colunas, normaliza e garante o índice único do ON CONFLICT.
+alter table public.admins add column if not exists name text;
+alter table public.admins add column if not exists created_at timestamptz default now();
+delete from public.admins where email is null or btrim(email) = '';
+delete from public.admins a
+  using public.admins b
+  where lower(btrim(a.email)) = lower(btrim(b.email)) and a.ctid > b.ctid;
+update public.admins set email = lower(btrim(email)) where email <> lower(btrim(email));
+create unique index if not exists admins_email_key on public.admins (email);
+
+insert into public.admins (email, name) values ('previaemailofc@gmail.com', 'Admin principal')
 on conflict (email) do nothing;
 
 alter table public.admins enable row level security;
@@ -815,7 +827,7 @@ create policy avatars_update_own on storage.objects
 -- 1) Admins: nome + seed só do admin principal. Os demais são cadastrados pelo painel.
 alter table public.admins add column if not exists name text;
 alter table public.admins drop constraint if exists admins_name_len;
-alter table public.admins add constraint admins_name_len check (name is null or char_length(name) between 1 and 80);
+alter table public.admins add constraint admins_name_len check (name is null or char_length(name) between 1 and 80) not valid;
 
 insert into public.admins (email, name) values ('previaemailofc@gmail.com', 'Admin principal')
 on conflict (email) do update set name = coalesce(public.admins.name, excluded.name);
@@ -1263,3 +1275,41 @@ drop trigger if exists redirect_links_set_updated_at on public.redirect_links;
 create trigger redirect_links_set_updated_at
   before update on public.redirect_links
   for each row execute function public.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- 20261014030000_schema_compat.sql
+-- -----------------------------------------------------------------------------
+
+-- Compatibilidade com tabelas criadas à mão antes das migrations (CREATE TABLE IF NOT EXISTS não completa colunas).
+-- Roda por último: guard_redirect_link_update (edit_requests) lê qr_synced em todo UPDATE de redirect_links.
+-- Idempotente: pode rodar de novo sem efeito colateral.
+
+alter table public.redirect_links
+  add column if not exists destination_type text not null default 'url',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists scan_count integer not null default 0,
+  add column if not exists nfc_synced boolean not null default false,
+  add column if not exists qr_synced boolean not null default true,
+  add column if not exists profile_enabled boolean not null default false,
+  add column if not exists webhook_url text,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table public.scan_logs
+  add column if not exists scanned_at timestamptz not null default now(),
+  add column if not exists scan_type text not null default 'qr',
+  add column if not exists user_agent text,
+  add column if not exists ip_hash text;
+
+alter table public.profiles
+  add column if not exists display_name text,
+  add column if not exists bio text,
+  add column if not exists avatar_url text,
+  add column if not exists theme_color text not null default '#1E40AF',
+  add column if not exists theme_style text not null default 'glass',
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- O contador era executável pela anon em instalações manuais.
+revoke execute on function public.increment_scan_count(text) from public, anon, authenticated;
+grant execute on function public.increment_scan_count(text) to service_role;

@@ -25,15 +25,15 @@ alter table public.profiles
   add column if not exists theme_style text not null default 'glass';
 
 alter table public.profiles drop constraint if exists profiles_display_name_len;
-alter table public.profiles add constraint profiles_display_name_len check (display_name is null or char_length(display_name) <= 60);
+alter table public.profiles add constraint profiles_display_name_len check (display_name is null or char_length(display_name) <= 60) not valid;
 alter table public.profiles drop constraint if exists profiles_bio_len;
-alter table public.profiles add constraint profiles_bio_len check (bio is null or char_length(bio) <= 120);
+alter table public.profiles add constraint profiles_bio_len check (bio is null or char_length(bio) <= 120) not valid;
 alter table public.profiles drop constraint if exists profiles_theme_color_hex;
-alter table public.profiles add constraint profiles_theme_color_hex check (theme_color ~ '^#[0-9A-Fa-f]{6}$');
+alter table public.profiles add constraint profiles_theme_color_hex check (theme_color ~ '^#[0-9A-Fa-f]{6}$') not valid;
 alter table public.profiles drop constraint if exists profiles_theme_style_valid;
-alter table public.profiles add constraint profiles_theme_style_valid check (theme_style in ('glass', 'solid'));
+alter table public.profiles add constraint profiles_theme_style_valid check (theme_style in ('glass', 'solid')) not valid;
 alter table public.profiles drop constraint if exists profiles_avatar_url_https;
-alter table public.profiles add constraint profiles_avatar_url_https check (avatar_url is null or (avatar_url ~ '^https://' and char_length(avatar_url) <= 1024));
+alter table public.profiles add constraint profiles_avatar_url_https check (avatar_url is null or (avatar_url ~ '^https://' and char_length(avatar_url) <= 1024)) not valid;
 
 alter table public.profiles enable row level security;
 
@@ -85,7 +85,7 @@ alter table public.redirect_links
 
 alter table public.redirect_links drop constraint if exists redirect_links_webhook_https;
 alter table public.redirect_links add constraint redirect_links_webhook_https
-  check (webhook_url is null or (webhook_url ~ '^https://' and char_length(webhook_url) <= 2048));
+  check (webhook_url is null or (webhook_url ~ '^https://' and char_length(webhook_url) <= 2048)) not valid;
 
 -- Links do perfil (por plaquinha).
 create table if not exists public.profile_links (

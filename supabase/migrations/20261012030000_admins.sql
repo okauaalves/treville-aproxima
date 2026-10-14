@@ -7,7 +7,17 @@ create table if not exists public.admins (
   created_at timestamptz default now()
 );
 
-insert into public.admins (email) values ('previaemailofc@gmail.com')
+-- Tabela criada à mão antes desta migration: completa colunas, normaliza e garante o índice único do ON CONFLICT.
+alter table public.admins add column if not exists name text;
+alter table public.admins add column if not exists created_at timestamptz default now();
+delete from public.admins where email is null or btrim(email) = '';
+delete from public.admins a
+  using public.admins b
+  where lower(btrim(a.email)) = lower(btrim(b.email)) and a.ctid > b.ctid;
+update public.admins set email = lower(btrim(email)) where email <> lower(btrim(email));
+create unique index if not exists admins_email_key on public.admins (email);
+
+insert into public.admins (email, name) values ('previaemailofc@gmail.com', 'Admin principal')
 on conflict (email) do nothing;
 
 alter table public.admins enable row level security;
