@@ -1,0 +1,96 @@
+import { supabase } from '@/lib/supabase';
+
+const DEPLOY_HINT = 'Função admin desatualizada ou não implantada. Rode: npx supabase functions deploy admin (e supabase db push).';
+
+export class AdminApiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AdminApiError';
+  }
+}
+
+async function describe(error: { name?: string; message: string; context?: unknown }): Promise<string> {
+  const context = error.context as { status?: number; json?: () => Promise<unknown> } | undefined;
+  const status = context?.status;
+  if (status === 404) {
+    return DEPLOY_HINT;
+  }
+  if (status === 401) {
+    return 'Sessão expirada. Saia e entre novamente.';
+  }
+  if (status === 403) {
+    return 'Esta conta não tem permissão de administrador.';
+  }
+  if (error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') {
+    return `Não foi possível contatar a função admin. ${DEPLOY_HINT}`;
+  }
+  if (context?.json) {
+    const body = (await context.json().catch(() => null)) as { error?: string } | null;
+    if (body?.error) {
+      return body.error === 'Ação desconhecida.' ? DEPLOY_HINT : body.error;
+    }
+  }
+  return error.message;
+}
+
+/** A autorização é feita na Edge Function (service_role só lá). */
+export async function invokeAdmin<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  if (!supabase) {
+    throw new AdminApiError('Supabase não configurado.');
+  }
+  const { data, error } = await supabase.functions.invoke('admin', { body: { action, ...payload } });
+  if (error) {
+    throw new AdminApiError(await describe(error));
+  }
+  return data as T;
+}
+
+export type AccessRowStatus = 'pending' | 'approved' | 'blocked';
+
+export interface AccessItem {
+  id: string;
+  userId: string | null;
+  email: string;
+  status: AccessRowStatus;
+  name: string;
+  avatarUrl: string | null;
+  invited: boolean;
+  createdAt: string;
+  approvedAt: string | null;
+}
+
+export interface BatchItem {
+  id: string;
+  name: string;
+  destination_url: string;
+  destination_type: string;
+  is_active: boolean;
+  profile_enabled: boolean;
+}
+
+export async function listAccess(): Promise<AccessItem[]> {
+  const result = await invokeAdmin<{ items?: AccessItem[] }>('access_list');
+  return Array.isArray(result?.items) ? result.items : [];
+}
+
+export async function setAccessStatus(id: string, status: AccessRowStatus): Promise<void> {
+  await invokeAdmin('access_set_status', { id, status });
+}
+
+export async function inviteUser(email: string): Promise<{ invited: boolean; alreadyRegistered?: boolean }> {
+  return invokeAdmin('invite', { email });
+}
+
+export async function createBatch(input: { quantity: number; start: number; prefix: string; type: string; url: string | null }): Promise<BatchItem[]> {
+  const result = await invokeAdmin<{ items?: BatchItem[] }>('batch_create', input);
+  return Array.isArray(result?.items) ? result.items : [];
+}
+
+/** Só para admin: a RLS (is_admin) libera a contagem; para os demais volta 0 sem consulta. */
+export async function countPendingAccess(): Promise<number> {
+  if (!supabase) {
+    return 0;
+  }
+  const { count, error } = await supabase.from('user_access').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+  return error ? 0 : (count ?? 0);
+}

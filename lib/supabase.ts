@@ -99,7 +99,8 @@ export function translateAuthError(error: unknown): string {
   return 'Não foi possível concluir. Tente novamente.';
 }
 
-export type AuthCallbackResult = { session: Session | null; recovery: boolean };
+/** `invite`: link de convite (inviteUserByEmail) — a conta ainda não tem senha. */
+export type AuthCallbackResult = { session: Session | null; recovery: boolean; invite?: boolean };
 
 let recoveryPending = false;
 
@@ -145,7 +146,11 @@ export function handleAuthCallbackUrl(urlValue: string): Promise<AuthCallbackRes
       }
       // `redirectType` existe em runtime, mas não está no tipo público de AuthTokenResponse.
       const redirectType = (data as { redirectType?: string | null }).redirectType;
-      return { session: data.session, recovery: redirectType === 'recovery' || params.type === 'recovery' };
+      return {
+        session: data.session,
+        recovery: redirectType === 'recovery' || params.type === 'recovery',
+        invite: redirectType === 'invite' || params.type === 'invite',
+      };
     }
     const { data, error } = await client.auth.setSession({
       access_token: params.accessToken as string,
@@ -154,7 +159,7 @@ export function handleAuthCallbackUrl(urlValue: string): Promise<AuthCallbackRes
     if (error) {
       throw error;
     }
-    return { session: data.session, recovery: params.type === 'recovery' };
+    return { session: data.session, recovery: params.type === 'recovery', invite: params.type === 'invite' };
   })();
   inflight.set(key, task);
   return task;

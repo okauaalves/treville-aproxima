@@ -1,15 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { ChevronRight, QrCode, UserCheck } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Card } from '@/components/ui/Card';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { countPendingAccess } from '@/lib/adminApi';
 import { downloadCsv } from '@/lib/downloadCsv';
+import { push } from '@/lib/navigation';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useToastStore } from '@/stores/toastStore';
 import { ContentTypeColors, type ContentType } from '@/theme/colors';
@@ -69,6 +73,7 @@ export default function AdminScreen() {
   const [data, setData] = useState<Overview | null>(null);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(0);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -91,6 +96,7 @@ export default function AdminScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
+      void countPendingAccess().then(setPending);
     }, [load]),
   );
 
@@ -135,6 +141,8 @@ export default function AdminScreen() {
     <Screen maxWidth={CONTENT_WIDTH.admin}>
       <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
+        <AdminShortcut testID="admin-atalho-acessos" title="Gerenciar acessos" subtitle="Aprovar, bloquear e convidar usuários" icon={<UserCheck color={colors.primary} size={22} />} badge={pending} onPress={() => push('/access')} />
+        <AdminShortcut testID="admin-atalho-lote" title="Gerar QR Codes em lote" subtitle="Até 100 plaquinhas com PDF e CSV" icon={<QrCode color={colors.primary} size={22} />} onPress={() => push('/qr-batch')} />
         {loading ? (
           <>
             <Skeleton height={88} />
@@ -241,6 +249,23 @@ function UsageCard({ usage }: { usage: Overview['usage'] }) {
         <Text style={[{ color: colors.textMuted, fontSize: fs(11), marginTop: 8 }, inter('regular')]}>
           Cada scan é uma invocação da função redirect; a página de perfil usa mais uma. Fonte da cota: supabase.com/docs/guides/functions/pricing
         </Text>
+      </View>
+    </Card>
+  );
+}
+
+function AdminShortcut({ title, subtitle, icon, badge = 0, onPress, testID }: { title: string; subtitle: string; icon: ReactNode; badge?: number; onPress: () => void; testID?: string }) {
+  const { colors, fs } = useTheme();
+  return (
+    <Card onPress={onPress} accessibilityLabel={badge > 0 ? `${title}: ${badge} pendentes` : title} padding={16}>
+      <View testID={testID} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primaryGlow, alignItems: 'center', justifyContent: 'center' }}>{icon}</View>
+        <View style={{ flex: 1 }}>
+          <Text style={[{ color: colors.textPrimary, fontSize: fs(16) }, inter('bold')]}>{title}</Text>
+          <Text style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>{subtitle}</Text>
+        </View>
+        {badge > 0 ? <CountBadge count={badge} /> : null}
+        <ChevronRight color={colors.textMuted} size={20} />
       </View>
     </Card>
   );

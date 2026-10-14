@@ -184,6 +184,9 @@ export function buildDestination(form: DestinationForm): DestinationCheck {
 
 /** Preenche o formulário a partir de um destino salvo (edição). */
 export function parseDestination(url: string, type: string): DestinationForm {
+  if (type === 'empty') {
+    return { ...EMPTY_DESTINATION };
+  }
   const form: DestinationForm = { ...EMPTY_DESTINATION, type: isDestinationType(type) ? type : 'url' };
   try {
     const parsed = new URL(url);

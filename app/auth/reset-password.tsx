@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { CircleAlert, Eye, EyeOff, KeyRound, Lock } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
@@ -18,6 +19,7 @@ type Status = 'checking' | 'ready' | 'expired' | 'local';
 
 export default function ResetPasswordScreen() {
   const { colors, fs } = useTheme();
+  const invite = useLocalSearchParams<{ mode?: string }>().mode === 'invite';
   const [status, setStatus] = useState<Status>(isSupabaseConfigured ? 'checking' : 'local');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -43,7 +45,7 @@ export default function ResetPasswordScreen() {
     setSaving(true);
     try {
       await setNewPassword(password);
-      useToastStore.getState().show('Senha atualizada.', 'success');
+      useToastStore.getState().show(invite ? 'Senha criada. Bem-vindo!' : 'Senha atualizada.', 'success');
       replace('/(tabs)');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Não foi possível salvar a senha.');
@@ -66,7 +68,7 @@ export default function ResetPasswordScreen() {
             <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }}>
               <KeyRound color={colors.primary} size={32} />
             </View>
-            <Text accessibilityRole="header" style={[{ color: colors.textPrimary, fontSize: fs(26), marginTop: 16, textAlign: 'center' }, inter('extrabold')]}>Definir nova senha</Text>
+            <Text accessibilityRole="header" style={[{ color: colors.textPrimary, fontSize: fs(26), marginTop: 16, textAlign: 'center' }, inter('extrabold')]}>{invite ? 'Definir senha' : 'Definir nova senha'}</Text>
           </View>
           {status === 'checking' ? <ActivityIndicator color={colors.primary} /> : null}
           {status === 'local' || status === 'expired' ? (
@@ -85,7 +87,11 @@ export default function ResetPasswordScreen() {
           ) : null}
           {status === 'ready' ? (
             <Card>
-              <Text style={[{ color: colors.textSecondary, fontSize: fs(14), marginBottom: 16 }, inter('regular')]}>Escolha uma senha com ao menos 6 caracteres. Ela substitui a anterior em todos os aparelhos.</Text>
+              <Text style={[{ color: colors.textSecondary, fontSize: fs(14), marginBottom: 16 }, inter('regular')]}>
+                {invite
+                  ? 'Você foi convidado e seu acesso já está liberado. Escolha uma senha com ao menos 6 caracteres para entrar nas próximas vezes.'
+                  : 'Escolha uma senha com ao menos 6 caracteres. Ela substitui a anterior em todos os aparelhos.'}
+              </Text>
               <Input label="Nova senha" value={password} onChangeText={(value) => { setPassword(value); setError(''); }} secureTextEntry={!show} autoComplete="new-password" textContentType="newPassword" placeholder="Nova senha" leftIcon={<Lock color={colors.textSecondary} size={18} />} rightIcon={eye} />
               <Input label="Confirmar senha" value={confirm} onChangeText={(value) => { setConfirm(value); setError(''); }} secureTextEntry={!show} autoComplete="new-password" textContentType="newPassword" placeholder="Repita a senha" leftIcon={<Lock color={colors.textSecondary} size={18} />} onSubmitEditing={() => void save()} />
               {error ? <Text accessibilityRole="alert" style={[{ color: colors.error, marginBottom: 12 }, inter('medium')]}>{error}</Text> : null}

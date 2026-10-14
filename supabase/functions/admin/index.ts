@@ -12,6 +12,19 @@ import {
   type AdminUserRow,
   type InvocationUsage,
 } from '../_shared/aggregate.ts';
+import {
+  buildBatchRows,
+  checkBatchInput,
+  checkEmail,
+  isAccessStatus,
+  isUuid,
+  makeLinkId,
+} from '../_shared/adminAccess.ts';
+
+const PRIMARY_ADMIN_EMAIL = 'previaemailofc@gmail.com';
+const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
+const DEFAULT_INVITE_REDIRECT = 'treville://auth/callback';
+const ACCESS_ACTIONS = new Set(['access_list', 'access_set_status', 'invite', 'batch_create', 'pending_count']);
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -50,18 +63,35 @@ Deno.serve(async (request) => {
   const confirmed = Boolean(user.email_confirmed_at || user.confirmed_at);
   const role = (user.app_metadata as { role?: string } | undefined)?.role;
   const admin = createClient(url, serviceKey);
-  const allowed = role === 'admin' || (confirmed && email !== '' && (await isListedAdmin(admin, email)));
+  const primary = (Deno.env.get('ADMIN_EMAIL') ?? PRIMARY_ADMIN_EMAIL).trim().toLowerCase();
+  const allowed = role === 'admin' || (confirmed && email !== '' && (email === primary || (await isListedAdmin(admin, email))));
   if (!allowed) {
     return json(403, { error: 'Sem permissão.' });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { action?: string };
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown> & { action?: string };
   const action = body.action === 'overview' ? 'stats' : body.action ?? 'stats';
-  if (action !== 'stats' && action !== 'export' && action !== 'cleanup') {
+  if (action !== 'stats' && action !== 'export' && action !== 'cleanup' && !ACCESS_ACTIONS.has(action)) {
     return json(400, { error: 'Ação desconhecida.' });
   }
 
   try {
+    if (action === 'pending_count') {
+      const { count, error } = await admin.from('user_access').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      return error ? json(500, { error: error.message }) : json(200, { pending: count ?? 0 });
+    }
+    if (action === 'access_list') {
+      return json(200, { items: await listAccess(admin) });
+    }
+    if (action === 'access_set_status') {
+      return await setAccessStatus(admin, body, user.id, primary);
+    }
+    if (action === 'invite') {
+      return await inviteUser(admin, body, user.id);
+    }
+    if (action === 'batch_create') {
+      return await batchCreate(admin, body, user.id);
+    }
     if (action === 'cleanup') {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await admin.from('operations').delete().lt('created_at', cutoff).select('id');
@@ -164,6 +194,151 @@ async function monthUsage(admin: ReturnType<typeof createClient>): Promise<Invoc
   }
   const limit = Number(Deno.env.get('EDGE_INVOCATIONS_LIMIT') ?? FREE_PLAN_EDGE_INVOCATIONS);
   return invocationUsage(count ?? 0, Number.isFinite(limit) && limit > 0 ? limit : FREE_PLAN_EDGE_INVOCATIONS, now);
+}
+
+type AccessRow = { id: string; user_id: string | null; email: string | null; status: string; invited_by: string | null; approved_at: string | null; created_at: string };
+
+async function listAccess(admin: ReturnType<typeof createClient>) {
+  const { data, error } = await admin
+    .from('user_access')
+    .select('id,user_id,email,status,invited_by,approved_at,created_at')
+    .order('created_at', { ascending: false })
+    .limit(1000);
+  if (error) {
+    throw error;
+  }
+  const rows = (data ?? []) as AccessRow[];
+  const ids = rows.map((row) => row.user_id).filter((id): id is string => !!id);
+  const profiles = new Map<string, { name: string; avatarUrl: string | null }>();
+  for (let index = 0; index < ids.length; index += 100) {
+    const { data: chunk } = await admin.from('profiles').select('id,display_name,full_name,avatar_url').in('id', ids.slice(index, index + 100));
+    for (const item of chunk ?? []) {
+      const name = String(item.display_name ?? '').trim() || String(item.full_name ?? '').trim();
+      profiles.set(String(item.id), { name, avatarUrl: typeof item.avatar_url === 'string' ? item.avatar_url : null });
+    }
+  }
+  return rows.map((row) => {
+    const profile = row.user_id ? profiles.get(row.user_id) : undefined;
+    return {
+      id: row.id,
+      userId: row.user_id,
+      email: row.email ?? '',
+      status: row.status,
+      name: profile?.name || row.email || 'Sem nome',
+      avatarUrl: profile?.avatarUrl ?? null,
+      invited: !!row.invited_by,
+      createdAt: row.created_at,
+      approvedAt: row.approved_at,
+    };
+  });
+}
+
+async function setAccessStatus(admin: ReturnType<typeof createClient>, body: Record<string, unknown>, callerId: string, primary: string): Promise<Response> {
+  if (!isUuid(body.id) || !isAccessStatus(body.status)) {
+    return json(400, { error: 'Pedido inválido.' });
+  }
+  const { data: row, error } = await admin.from('user_access').select('id,user_id,email,status,approved_at').eq('id', body.id).maybeSingle();
+  if (error) {
+    return json(500, { error: error.message });
+  }
+  if (!row) {
+    return json(404, { error: 'Registro não encontrado.' });
+  }
+  if (body.status !== 'approved') {
+    if (row.user_id === callerId) {
+      return json(400, { error: 'Você não pode bloquear a própria conta.' });
+    }
+    const target = String(row.email ?? '');
+    if (target && (target === primary || (await isListedAdmin(admin, target)))) {
+      return json(400, { error: 'Administradores não podem ser bloqueados.' });
+    }
+  }
+  const approvedAt = body.status === 'approved' ? new Date().toISOString() : row.approved_at;
+  const { error: updateError } = await admin.from('user_access').update({ status: body.status, approved_at: approvedAt }).eq('id', body.id);
+  if (updateError) {
+    return json(500, { error: updateError.message });
+  }
+  return json(200, { id: body.id, status: body.status, approvedAt });
+}
+
+/** Cria (ou aprova) a linha pelo e-mail e manda o convite; o trigger de auth.users vincula o user_id. */
+async function inviteUser(admin: ReturnType<typeof createClient>, body: Record<string, unknown>, callerId: string): Promise<Response> {
+  const checked = checkEmail(body.email);
+  if (!checked.ok) {
+    return json(400, { error: checked.error });
+  }
+  const email = checked.value;
+  const now = new Date().toISOString();
+  const { data: existing, error } = await admin.from('user_access').select('id,user_id,status').eq('email', email).maybeSingle();
+  if (error) {
+    return json(500, { error: error.message });
+  }
+  if (existing?.user_id) {
+    if (existing.status !== 'approved') {
+      await admin.from('user_access').update({ status: 'approved', approved_at: now }).eq('id', existing.id);
+    }
+    return json(200, { invited: false, alreadyRegistered: true, email });
+  }
+  let createdId: string | null = null;
+  if (existing) {
+    await admin.from('user_access').update({ status: 'approved', approved_at: now, invited_by: callerId }).eq('id', existing.id);
+  } else {
+    const { data: inserted, error: insertError } = await admin
+      .from('user_access')
+      .insert({ email, status: 'approved', approved_at: now, invited_by: callerId })
+      .select('id')
+      .single();
+    if (insertError) {
+      return json(500, { error: insertError.message });
+    }
+    createdId = String(inserted.id);
+  }
+  const redirectTo = (Deno.env.get('INVITE_REDIRECT_TO') ?? '').trim() || DEFAULT_INVITE_REDIRECT;
+  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
+  if (inviteError) {
+    if (/already (been )?registered|already exists/i.test(inviteError.message)) {
+      // Conta já existe: a linha aprovada por e-mail é vinculada no próximo login (my_access_status).
+      return json(200, { invited: false, alreadyRegistered: true, email });
+    }
+    if (createdId) {
+      await admin.from('user_access').delete().eq('id', createdId).is('user_id', null);
+    }
+    return json(502, { error: `Não foi possível enviar o convite: ${inviteError.message}` });
+  }
+  return json(200, { invited: true, email });
+}
+
+function profilePageBase(): string {
+  const value = (Deno.env.get('PROFILE_PAGE_URL') ?? '').trim().replace(/\/+$/, '');
+  return /^https:\/\/[^/\s]+/.test(value) ? value : DEFAULT_PROFILE_PAGE_BASE;
+}
+
+/** Um insert multi-linha por bloco; colisão de ID (23505) refaz o bloco inteiro com IDs novos. */
+async function batchCreate(admin: ReturnType<typeof createClient>, body: Record<string, unknown>, userId: string): Promise<Response> {
+  const checked = checkBatchInput(body);
+  if (!checked.ok) {
+    return json(400, { error: checked.error });
+  }
+  const input = checked.value;
+  const randomBytes = (count: number) => crypto.getRandomValues(new Uint8Array(count));
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const ids = new Set<string>();
+    while (ids.size < input.quantity) {
+      ids.add(makeLinkId(randomBytes));
+    }
+    const rows = buildBatchRows(input, userId, [...ids], profilePageBase());
+    const { data, error } = await admin
+      .from('redirect_links')
+      .insert(rows)
+      .select('id,name,destination_url,destination_type,is_active,profile_enabled,created_at');
+    if (!error) {
+      return json(200, { items: data ?? [] });
+    }
+    if (error.code !== '23505') {
+      return json(500, { error: error.message });
+    }
+  }
+  return json(409, { error: 'Não foi possível gerar códigos livres. Tente de novo.' });
 }
 
 async function countOperations(admin: ReturnType<typeof createClient>): Promise<number> {

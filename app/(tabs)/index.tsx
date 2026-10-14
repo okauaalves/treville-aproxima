@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { ChevronRight, Nfc, Settings, SmartphoneNfc } from 'lucide-react-native';
+import { ChevronRight, Nfc, Settings, ShieldCheck, SmartphoneNfc } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import { Screen } from '@/components/layout/Screen';
 import { ExpoGoBanner } from '@/components/nfc/ExpoGoBanner';
 import { NfcPulse } from '@/components/nfc/NfcPulse';
 import { Card } from '@/components/ui/Card';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { HistoryItem } from '@/components/ui/HistoryItem';
 import { IconButton } from '@/components/ui/IconButton';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -19,6 +20,7 @@ import { nfcManager } from '@/core/nfc/NfcManager';
 import { getOperations } from '@/core/offline/database';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useNfc } from '@/hooks/useNfc';
+import { usePendingAccessCount } from '@/hooks/usePendingAccessCount';
 import { useDispatchState, useReadLock, useTagDispatch } from '@/hooks/useTagDispatch';
 import { openNfcFlow } from '@/lib/nfcEntry';
 import { push } from '@/lib/navigation';
@@ -51,6 +53,7 @@ export default function HomeScreen() {
   const [loadingRecent, setLoadingRecent] = useState(true);
   const locked = useReadLock();
   const dispatch = useDispatchState();
+  const { isAdmin, pending } = usePendingAccessCount();
 
   useFocusEffect(
     useCallback(() => {
@@ -91,6 +94,14 @@ export default function HomeScreen() {
         <Text style={[{ fontSize: fs(28), color: colors.primary }, inter('bold')]}>Tréville</Text>
         <Text style={[{ fontSize: fs(17), color: colors.textSecondary }, inter('semibold')]}>Aproxima</Text>
       </View>
+      {isAdmin ? (
+        <IconButton accessibilityLabel={pending > 0 ? `Painel Admin: ${pending} ${pending === 1 ? 'pedido pendente' : 'pedidos pendentes'}` : 'Painel Admin'} onPress={() => push('/admin')}>
+          <View testID="home-admin">
+            <ShieldCheck color={colors.primary} size={22} />
+            <CountBadge count={pending} style={{ position: 'absolute', top: -8, right: -12 }} />
+          </View>
+        </IconButton>
+      ) : null}
       <IconButton accessibilityLabel="Ajustes" onPress={() => push('/(tabs)/settings')}>
         <Settings color={colors.textSecondary} size={22} />
       </IconButton>

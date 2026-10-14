@@ -74,7 +74,7 @@ export function PlaquinhaCard({
                 {link.name}
               </Text>
               <Text numberOfLines={1} ellipsizeMode="middle" style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
-                {link.destination_url}
+                {link.destination_type === 'empty' ? 'Sem destino' : link.destination_url}
               </Text>
             </View>
             <Toggle value={link.is_active} onValueChange={onToggle} accessibilityLabel={link.is_active ? `Desativar ${link.name}` : `Ativar ${link.name}`} />

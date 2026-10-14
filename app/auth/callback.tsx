@@ -53,7 +53,7 @@ export default function AuthCallbackScreen() {
         }
         useAuthStore.getState().setUser(result.session.user);
         const recovery = consumeRecoveryEvent() || result.recovery;
-        replace(recovery ? '/auth/reset-password' : '/(tabs)');
+        replace(result.invite ? '/auth/reset-password?mode=invite' : recovery ? '/auth/reset-password' : '/(tabs)');
       } catch (caught) {
         const session = await getCurrentSession().catch(() => null);
         if (session?.user) {

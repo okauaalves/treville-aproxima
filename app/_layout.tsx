@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import '../global.css';
 
 import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -20,9 +21,11 @@ import { Toast } from '@/components/ui/Toast';
 import { initDatabase } from '@/core/offline/database';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { startAutoSync, syncIfOnline } from '@/core/offline/syncEngine';
+import { decideGate } from '@/lib/access';
 import { restoreLocalSession } from '@/lib/authActions';
 import { readOnboardingDone } from '@/lib/bootRoute';
 import { bindAuthRefresh, getCurrentSession, isSupabaseConfigured, onAuthStateChange } from '@/lib/supabase';
+import { useAccessStore } from '@/stores/accessStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBootStore } from '@/stores/bootStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -37,6 +40,26 @@ SplashScreen.setOptions({
 function RootNavigator() {
   const { navigationTheme, scheme, colors } = useTheme();
   const user = useAuthStore((state) => state.user);
+  const userId = user?.id ?? null;
+  const accessStatus = useAccessStore((state) => (state.userId === userId ? state.status : null));
+  const gate = decideGate({ configured: isSupabaseConfigured, hasUser: !!user, status: accessStatus });
+
+  // Reavalia o acesso na troca de usuário e ao voltar ao primeiro plano (aprovado/bloqueado pelo admin).
+  useEffect(() => {
+    const known = useAccessStore.getState();
+    if (known.userId !== userId || known.status === null) {
+      void known.refresh(userId);
+    }
+    if (!userId || !isSupabaseConfigured) {
+      return;
+    }
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void useAccessStore.getState().refresh(userId);
+      }
+    });
+    return () => sub.remove();
+  }, [userId]);
 
   return (
     <ThemeProvider value={navigationTheme}>
@@ -53,10 +76,16 @@ function RootNavigator() {
         <Stack.Screen name="auth/callback" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="auth/reset-password" options={{ animation: 'fade' }} />
         <Stack.Screen name="terms" />
-        <Stack.Protected guard={!user}>
+        <Stack.Protected guard={gate === 'signed_out'}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
-        <Stack.Protected guard={!!user}>
+        <Stack.Protected guard={gate === 'waiting'}>
+          <Stack.Screen name="waiting-approval" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={gate === 'denied'}>
+          <Stack.Screen name="access-denied" options={{ animation: 'fade' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={gate === 'app'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="scan/index" />
           <Stack.Screen name="read/index" />
@@ -100,6 +129,8 @@ function BootShell() {
       useBootStore.getState().setOnboardingSeen(seen);
       if (isSupabaseConfigured) {
         const session = await getCurrentSession();
+        // O splash cobre a primeira checagem de acesso: a tela certa já abre sem piscar.
+        await useAccessStore.getState().refresh(session?.user?.id ?? null);
         useAuthStore.getState().setUser(session?.user ?? null);
         const subscription = onAuthStateChange((next) => {
           useAuthStore.getState().setUser(next);
