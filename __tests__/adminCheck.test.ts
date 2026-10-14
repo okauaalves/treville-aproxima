@@ -56,14 +56,15 @@ describe('decideAdmin', () => {
     expect(decideAdmin({ user: comum, rpc: { kind: 'missing' }, tableHit: true, extraEmail }).isAdmin).toBe(true);
   });
 
-  it('erro de rede: só e-mail conhecido; tabela não conta', () => {
+  it('erro de rede ou outro erro: e-mail conhecido ou tabela admins', () => {
     expect(decideAdmin({ user: admin, rpc: { kind: 'network' }, extraEmail })).toEqual({ isAdmin: true, source: 'fallback', serverMissing: false });
-    expect(decideAdmin({ user: comum, rpc: { kind: 'network' }, tableHit: true, extraEmail }).isAdmin).toBe(false);
+    expect(decideAdmin({ user: comum, rpc: { kind: 'network' }, tableHit: true, extraEmail }).isAdmin).toBe(true);
     expect(decideAdmin({ user: comum, rpc: { kind: 'network' }, extraEmail: 'Comum@Exemplo.com' }).isAdmin).toBe(true);
+    expect(decideAdmin({ user: admin, rpc: { kind: 'error' }, extraEmail }).isAdmin).toBe(true);
+    expect(decideAdmin({ user: comum, rpc: { kind: 'error' }, extraEmail }).isAdmin).toBe(false);
   });
 
-  it('outro erro nega; sem usuário nega; role admin no JWT libera', () => {
-    expect(decideAdmin({ user: admin, rpc: { kind: 'error' }, extraEmail }).isAdmin).toBe(false);
+  it('sem usuário nega; role admin no JWT libera', () => {
     expect(decideAdmin({ user: null, rpc: { kind: 'ok', value: true }, extraEmail }).isAdmin).toBe(false);
     expect(decideAdmin({ user: { email: 'x@y.co', app_metadata: { role: 'admin' } }, rpc: { kind: 'missing' }, extraEmail })).toEqual({ isAdmin: true, source: 'jwt', serverMissing: true });
   });

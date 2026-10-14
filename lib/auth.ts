@@ -46,7 +46,7 @@ async function adminTableHas(email: string): Promise<boolean> {
 async function runCheck(user: NonNullable<AdminCandidate>): Promise<AdminDecision> {
   const email = normalizeAdminEmail(user.email);
   const rpc = await callIsAdmin();
-  const tableHit = rpc.kind === 'missing' && email !== '' && !isFallbackAdminEmail(email) ? await adminTableHas(email) : false;
+  const tableHit = rpc.kind !== 'ok' && email !== '' && !isFallbackAdminEmail(email) ? await adminTableHas(email) : false;
   return decideAdmin({ user, rpc, tableHit, extraEmail: Config.adminEmail });
 }
 

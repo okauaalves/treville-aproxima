@@ -76,18 +76,6 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: Math.max(insets.bottom, 28) }}>
         <Section title="Conta">
           <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
-          {isAdmin ? (
-            <Row
-              testID="settings-painel-admin"
-              label="Painel Admin"
-              value=""
-              first={false}
-              icon={<ShieldCheck color={colors.primary} size={18} />}
-              badge={pendingAdmin}
-              accessibilityLabel={pendingAdmin > 0 ? `Painel Admin: ${pendingAdmin} pendentes` : 'Painel Admin'}
-              onPress={() => push('/admin')}
-            />
-          ) : null}
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
             <PrimaryButton label="Sair da conta" tone="danger" icon={<LogOut color={colors.onDanger} size={18} />} fullWidth onPress={() => setConfirmExit(true)} />
           </View>
@@ -108,6 +96,19 @@ export default function SettingsScreen() {
           <Row label="Versão" value={version} first={false} />
           <Row label="Termos de uso" value="" onPress={() => push('/terms')} first={false} />
         </Section>
+        {isAdmin ? (
+          <Section title="Administração">
+            <Row
+              testID="settings-painel-admin"
+              label="Painel Admin"
+              value=""
+              icon={<ShieldCheck color={colors.primary} size={18} />}
+              badge={pendingAdmin}
+              accessibilityLabel={pendingAdmin > 0 ? `Painel Admin: ${pendingAdmin} pendentes` : 'Painel Admin'}
+              onPress={() => push('/admin')}
+            />
+          </Section>
+        ) : null}
         <Section title="Dados">
           <Row label="Retenção do histórico" value={`${retention} dias`} onPress={() => void useSettingsStore.getState().setHistoryRetentionDays(retention === 30 ? 90 : retention === 90 ? 365 : 30)} />
           <Row

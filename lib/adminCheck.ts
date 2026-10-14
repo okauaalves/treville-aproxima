@@ -64,9 +64,6 @@ export function decideAdmin(input: { user: AdminUser; rpc: RpcOutcome; tableHit?
   if (rpc.kind === 'ok') {
     return { isAdmin: rpc.value, source: 'server', serverMissing: false };
   }
-  if (rpc.kind === 'missing' || rpc.kind === 'network') {
-    const known = isFallbackAdminEmail(user.email, input.extraEmail === undefined ? Config.adminEmail : input.extraEmail) || (serverMissing && input.tableHit === true);
-    return { isAdmin: known, source: known ? 'fallback' : 'none', serverMissing };
-  }
-  return NOT_ADMIN;
+  const known = isFallbackAdminEmail(user.email, input.extraEmail === undefined ? Config.adminEmail : input.extraEmail) || input.tableHit === true;
+  return { isAdmin: known, source: known ? 'fallback' : 'none', serverMissing };
 }

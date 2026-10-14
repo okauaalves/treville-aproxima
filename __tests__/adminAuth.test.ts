@@ -72,13 +72,22 @@ describe('checkAdmin', () => {
     rpc.mockRejectedValueOnce(new TypeError('Network request failed'));
     await expect(isAdminUser(user('previaemailofc@gmail.com', 'u5'))).resolves.toBe(true);
     rpc.mockResolvedValueOnce(RPC_NETWORK);
+    maybeSingle.mockRejectedValueOnce(new TypeError('Network request failed'));
     await expect(isAdminUser(user('comum@exemplo.com', 'u6'))).resolves.toBe(false);
-    expect(from).not.toHaveBeenCalled();
   });
 
-  it('outros erros da RPC negam, mesmo para o e-mail principal', async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'permission denied' }, status: 403 });
-    await expect(isAdminUser(user('previaemailofc@gmail.com'))).resolves.toBe(false);
+  it('cenário real do remoto: RPC 404 + admins [] sem erro + e-mail principal → admin', async () => {
+    rpc.mockResolvedValueOnce(RPC_MISSING);
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null, status: 200 });
+    await expect(checkAdmin(user('previaemailofc@gmail.com '))).resolves.toEqual({ isAdmin: true, source: 'fallback', serverMissing: true });
+  });
+
+  it('outros erros da RPC (ex.: 401 de sessão web): fallback por e-mail/tabela', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST301', message: 'JWT expired' }, status: 401 });
+    await expect(isAdminUser(user('previaemailofc@gmail.com'))).resolves.toBe(true);
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST301', message: 'JWT expired' }, status: 401 });
+    maybeSingle.mockResolvedValueOnce({ data: null, error: null, status: 200 });
+    await expect(isAdminUser(user('comum@exemplo.com', 'u7'))).resolves.toBe(false);
   });
 
   it('sem usuário não consulta; app_metadata.role admin libera', async () => {

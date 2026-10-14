@@ -9,6 +9,7 @@ import {
   type EditRequestStatus,
 } from '@/lib/editAccessLogic';
 import type { RedirectLink } from '@/lib/plaquinhaLogic';
+import { isAdminUser } from '@/lib/auth';
 import { checkEmail } from '@/supabase/functions/_shared/adminAccess';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -66,12 +67,9 @@ function fail(error: DbError, fallback: string): AdminAccessError {
   return new AdminAccessError(fallback);
 }
 
-export async function isAdmin(): Promise<boolean> {
-  if (!supabase) {
-    return false;
-  }
-  const { data, error } = await supabase.rpc('is_admin');
-  return !error && data === true;
+/** Mesma decisão do useIsAdmin (RPC is_admin, com fallback de UI por e-mail/tabela admins). */
+export function isAdmin(): Promise<boolean> {
+  return isAdminUser(useAuthStore.getState().user);
 }
 
 export interface PlaquinhaLookup {
