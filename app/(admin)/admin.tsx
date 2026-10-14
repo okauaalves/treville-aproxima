@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { ChevronRight, KeyRound, QrCode, ShieldCheck, UserCheck } from 'lucide-react-native';
+import { ChevronRight, KeyRound, QrCode, ShieldCheck, TriangleAlert, UserCheck } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
@@ -11,6 +11,7 @@ import { CountBadge } from '@/components/ui/CountBadge';
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { countPendingEditRequests } from '@/lib/adminAccess';
 import { countPendingAccess } from '@/lib/adminApi';
 import { downloadCsv } from '@/lib/downloadCsv';
@@ -69,6 +70,7 @@ function formatDate(value: string | null): string {
 
 export default function AdminScreen() {
   const { colors, fs, isDark } = useTheme();
+  const { serverMissing } = useIsAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState<Overview | null>(null);
@@ -144,6 +146,19 @@ export default function AdminScreen() {
     <Screen maxWidth={CONTENT_WIDTH.admin}>
       <AppHeader title="Painel Admin — Tréville Aproxima" back />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}>
+        {serverMissing ? (
+          <Card style={{ borderColor: colors.warning, borderWidth: 1 }}>
+            <View testID="admin-aviso-migracao" accessible accessibilityRole="alert" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+              <TriangleAlert color={colors.warning} size={22} />
+              <View style={{ flex: 1 }}>
+                <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>O servidor ainda não tem as tabelas de admin. Rode supabase db push.</Text>
+                <Text style={[{ color: colors.textSecondary, fontSize: fs(13), marginTop: 4 }, inter('regular')]}>
+                  Você entrou pelo e-mail de admin, mas as aprovações, solicitações e a lista de admins só funcionam depois das migrações e do deploy da função admin.
+                </Text>
+              </View>
+            </View>
+          </Card>
+        ) : null}
         <AdminShortcut testID="admin-atalho-acessos" title="Gerenciar acessos" subtitle="Aprovar, bloquear e convidar usuários" icon={<UserCheck color={colors.primary} size={22} />} badge={pending} onPress={() => push('/access')} />
         <AdminShortcut testID="admin-atalho-edicao" title="Solicitações de edição" subtitle="Liberar, negar e revogar edição de plaquinhas" icon={<KeyRound color={colors.primary} size={22} />} badge={pendingEdits} onPress={() => push('/edit-requests')} />
         <AdminShortcut testID="admin-atalho-admins" title="Administradores" subtitle="Adicionar e remover admins" icon={<ShieldCheck color={colors.primary} size={22} />} onPress={() => push('/admins')} />

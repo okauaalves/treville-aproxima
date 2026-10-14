@@ -1,92 +1,100 @@
+import { Config } from '@/constants/config';
+import { classifyRpc, decideAdmin, isFallbackAdminEmail, normalizeAdminEmail, NOT_ADMIN, type AdminDecision, type RpcOutcome } from '@/lib/adminCheck';
 import { supabase } from '@/lib/supabase';
 import type { AppUser } from '@/types/auth';
 import { logger } from '@/utils/logger';
 
 type AdminCandidate = Pick<AppUser, 'id' | 'email' | 'app_metadata'> | null | undefined;
 
-/** Por sessão: user id -> resultado (ou consulta em andamento). Limpo em logout/troca de e-mail. */
-const cache = new Map<string, Promise<boolean>>();
-const resolved = new Map<string, boolean>();
+/** Consulta em andamento (deduplica telas montando juntas) e último resultado (evita piscar ao remontar). */
+const inflight = new Map<string, Promise<AdminDecision>>();
+const resolved = new Map<string, AdminDecision>();
 
 function cacheKey(user: NonNullable<AdminCandidate>): string {
-  return `${user.id}:${(user.email ?? '').trim().toLowerCase()}`;
+  return `${user.id}:${normalizeAdminEmail(user.email)}:${String(user.app_metadata?.role ?? '')}`;
 }
 
-/** Tabela ainda não migrada no banco remoto: trata como "ninguém é admin" sem poluir o log. */
-function isMissingTable(error: { code?: string; status?: number; message?: string }): boolean {
-  return error.code === 'PGRST205' || error.code === '42P01' || error.status === 404;
+async function callIsAdmin(): Promise<RpcOutcome> {
+  if (!supabase) {
+    return { kind: 'error' };
+  }
+  try {
+    const outcome = classifyRpc(await supabase.rpc('is_admin'));
+    if (outcome.kind === 'error' || outcome.kind === 'network') {
+      logger.warn('[admin] falha ao consultar is_admin', outcome.kind);
+    }
+    return outcome;
+  } catch (failure) {
+    logger.warn('[admin] is_admin sem conexão', failure);
+    return classifyRpc(failure instanceof Error ? failure : new Error(String(failure)));
+  }
 }
 
-/** is_admin() no servidor (JWT + tabela admins + e-mail confirmado); sem a RPC, cai na consulta da tabela. */
-async function queryAdmin(email: string): Promise<boolean> {
+/** Banco sem a RPC: a tabela admins (se existir) ainda lista admins além do principal. */
+async function adminTableHas(email: string): Promise<boolean> {
   if (!supabase) {
     return false;
   }
   try {
-    const rpc = await supabase.rpc('is_admin');
-    if (!rpc.error) {
-      return rpc.data === true;
-    }
-    if (rpc.error.code !== 'PGRST202' && rpc.error.code !== '42883') {
-      logger.warn('[admin] falha ao consultar is_admin', rpc.error.code);
-      return false;
-    }
-    const { data, error, status } = await supabase.from('admins').select('email').eq('email', email).maybeSingle();
-    if (error) {
-      if (!isMissingTable({ ...error, status })) {
-        logger.warn('[admin] falha ao consultar admins', error.code);
-      }
-      return false;
-    }
-    return !!data;
-  } catch (failure) {
-    logger.warn('[admin] consulta de admins', failure);
+    const { data, error } = await supabase.from('admins').select('email').eq('email', email).maybeSingle();
+    return !error && !!data;
+  } catch {
     return false;
   }
 }
 
-/** A UI do painel depende disto; a autorização real fica na Edge Function admin. */
-export async function isAdminUser(user: AdminCandidate): Promise<boolean> {
+async function runCheck(user: NonNullable<AdminCandidate>): Promise<AdminDecision> {
+  const email = normalizeAdminEmail(user.email);
+  const rpc = await callIsAdmin();
+  const tableHit = rpc.kind === 'missing' && email !== '' && !isFallbackAdminEmail(email) ? await adminTableHas(email) : false;
+  return decideAdmin({ user, rpc, tableHit, extraEmail: Config.adminEmail });
+}
+
+/** Sempre consulta o servidor de novo (foco/troca de sessão); só junta chamadas simultâneas. */
+export function checkAdmin(user: AdminCandidate): Promise<AdminDecision> {
   if (!user) {
-    return false;
-  }
-  if (user.app_metadata?.role === 'admin') {
-    return true;
-  }
-  const email = user.email?.trim().toLowerCase();
-  if (!email) {
-    return false;
+    return Promise.resolve(NOT_ADMIN);
   }
   const key = cacheKey(user);
-  let pending = cache.get(key);
-  if (!pending) {
-    pending = queryAdmin(email).then((value) => {
-      if (cache.get(key) === pending) {
-        resolved.set(key, value);
-      }
-      return value;
-    });
-    cache.set(key, pending);
+  const running = inflight.get(key);
+  if (running) {
+    return running;
   }
+  const pending = runCheck(user)
+    .then((decision) => {
+      if (inflight.get(key) === pending) {
+        resolved.set(key, decision);
+      }
+      return decision;
+    })
+    .finally(() => {
+      if (inflight.get(key) === pending) {
+        inflight.delete(key);
+      }
+    });
+  inflight.set(key, pending);
   return pending;
 }
 
-/** Resultado já conhecido para este usuário (evita piscar a UI ao remontar). */
-export function getCachedAdmin(user: AdminCandidate): boolean | undefined {
+/** A UI do painel depende disto; a autorização real fica no servidor (RLS + Edge Function admin). */
+export async function isAdminUser(user: AdminCandidate): Promise<boolean> {
+  return (await checkAdmin(user)).isAdmin;
+}
+
+/** Último resultado conhecido para este usuário (undefined = ainda não consultado). */
+export function getCachedAdmin(user: AdminCandidate): AdminDecision | undefined {
   if (!user) {
-    return false;
-  }
-  if (user.app_metadata?.role === 'admin') {
-    return true;
-  }
-  if (!user.email) {
-    return false;
+    return NOT_ADMIN;
   }
   return resolved.get(cacheKey(user));
 }
 
+export function adminCacheKey(user: AdminCandidate): string {
+  return user ? cacheKey(user) : '';
+}
+
 export function clearAdminCache(): void {
-  cache.clear();
+  inflight.clear();
   resolved.clear();
 }
 

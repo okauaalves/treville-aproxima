@@ -2,6 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Redirect, type Href } from 'expo-router';
 
 import { decideGate, gateRoute } from '@/lib/access';
+import { isFallbackAdminEmail } from '@/lib/adminCheck';
 import { decideInitialRoute } from '@/lib/bootRoute';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useAccessStore } from '@/stores/accessStore';
@@ -14,7 +15,7 @@ export default function Index() {
   const user = useAuthStore((state) => state.user);
   const onboardingSeen = useBootStore((state) => state.onboardingSeen);
   const status = useAccessStore((state) => (state.userId === (user?.id ?? null) ? state.status : null));
-  const gate = decideGate({ configured: isSupabaseConfigured, hasUser: Boolean(user), status });
+  const gate = decideGate({ configured: isSupabaseConfigured, hasUser: Boolean(user), status, knownAdmin: isFallbackAdminEmail(user?.email) });
   const initial = decideInitialRoute({ onboardingSeen, hasSession: Boolean(user) });
   if (initial === '/(tabs)' && gate === 'checking') {
     return (

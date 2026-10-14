@@ -1,33 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 
-import { getCachedAdmin, isAdminUser } from '@/lib/auth';
+import type { AdminDecision } from '@/lib/adminCheck';
+import { adminCacheKey, checkAdmin, getCachedAdmin } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
 
-/** `loading` fica true até a sessão e a consulta de admins resolverem — não redirecione antes disso. */
-export function useIsAdmin(): { isAdmin: boolean; loading: boolean } {
+/**
+ * Reavalia ao focar a tela e quando a sessão muda (o callback muda com a chave).
+ * `loading` fica true até a sessão e a primeira consulta resolverem — não redirecione antes disso.
+ */
+export function useIsAdmin(): { isAdmin: boolean; loading: boolean; serverMissing: boolean } {
   const user = useAuthStore((state) => state.user);
   const authLoading = useAuthStore((state) => state.isLoading);
-  const key = user ? `${user.id}:${user.email ?? ''}:${String(user.app_metadata?.role ?? '')}` : '';
-  const [result, setResult] = useState<{ key: string; isAdmin: boolean } | null>(() => {
-    const cached = getCachedAdmin(user);
-    return cached === undefined ? null : { key, isAdmin: cached };
-  });
+  const key = adminCacheKey(user);
+  const [result, setResult] = useState<{ key: string; decision: AdminDecision } | null>(null);
 
-  useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-    let alive = true;
-    void isAdminUser(useAuthStore.getState().user).then((isAdmin) => {
-      if (alive) {
-        setResult({ key, isAdmin });
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) {
+        return;
       }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [authLoading, key]);
+      let alive = true;
+      void checkAdmin(useAuthStore.getState().user).then((decision) => {
+        if (alive) {
+          setResult({ key, decision });
+        }
+      });
+      return () => {
+        alive = false;
+      };
+    }, [authLoading, key]),
+  );
 
-  const current = result?.key === key ? result.isAdmin : getCachedAdmin(user);
-  return { isAdmin: current ?? false, loading: authLoading || current === undefined };
+  const current = result?.key === key ? result.decision : getCachedAdmin(user);
+  return { isAdmin: current?.isAdmin ?? false, loading: authLoading || current === undefined, serverMissing: current?.serverMissing ?? false };
 }

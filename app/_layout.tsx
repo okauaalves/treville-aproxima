@@ -23,6 +23,7 @@ import { initDatabase, pruneOldOperations } from '@/core/offline/database';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { REMOTE_SYNC_ENABLED, startAutoSync, syncIfOnline } from '@/core/offline/syncEngine';
 import { decideGate } from '@/lib/access';
+import { isFallbackAdminEmail } from '@/lib/adminCheck';
 import { restoreLocalSession } from '@/lib/authActions';
 import { readOnboardingDone } from '@/lib/bootRoute';
 import { bindAuthRefresh, getCurrentSession, isSupabaseConfigured, onAuthStateChange } from '@/lib/supabase';
@@ -44,7 +45,7 @@ function RootNavigator() {
   const user = useAuthStore((state) => state.user);
   const userId = user?.id ?? null;
   const accessStatus = useAccessStore((state) => (state.userId === userId ? state.status : null));
-  const gate = decideGate({ configured: isSupabaseConfigured, hasUser: !!user, status: accessStatus });
+  const gate = decideGate({ configured: isSupabaseConfigured, hasUser: !!user, status: accessStatus, knownAdmin: isFallbackAdminEmail(user?.email) });
 
   // Reavalia o acesso na troca de usuário e ao voltar ao primeiro plano (aprovado/bloqueado pelo admin).
   useEffect(() => {

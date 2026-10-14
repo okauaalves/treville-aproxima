@@ -8,10 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CONTENT_WIDTH } from '@/components/layout/ContentContainer';
 import { Screen } from '@/components/layout/Screen';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
-import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { usePendingAccessCount } from '@/hooks/usePendingAccessCount';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
+import { CountBadge } from '@/components/ui/CountBadge';
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Toggle } from '@/components/ui/Toggle';
@@ -64,7 +65,7 @@ export default function SettingsScreen() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const user = useAuthStore((state) => state.user);
-  const { isAdmin } = useIsAdmin();
+  const { isAdmin, pending: pendingAdmin } = usePendingAccessCount();
   const themeLabel = THEMES.find((item) => item.value === preference)?.label ?? 'Claro';
   const modeLabel = MODES.find((item) => item.value === readMode)?.label ?? 'Padrão';
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -75,7 +76,18 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: padding, paddingBottom: Math.max(insets.bottom, 28) }}>
         <Section title="Conta">
           <Row label="Conta" value={user?.email ?? (isSupabaseConfigured ? 'Sessão' : 'Modo local')} onPress={() => push('/account')} />
-          {isAdmin ? <Row label="Painel Admin" value="" first={false} icon={<ShieldCheck color={colors.primary} size={18} />} onPress={() => push('/admin')} /> : null}
+          {isAdmin ? (
+            <Row
+              testID="settings-painel-admin"
+              label="Painel Admin"
+              value=""
+              first={false}
+              icon={<ShieldCheck color={colors.primary} size={18} />}
+              badge={pendingAdmin}
+              accessibilityLabel={pendingAdmin > 0 ? `Painel Admin: ${pendingAdmin} pendentes` : 'Painel Admin'}
+              onPress={() => push('/admin')}
+            />
+          ) : null}
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
             <PrimaryButton label="Sair da conta" tone="danger" icon={<LogOut color={colors.onDanger} size={18} />} fullWidth onPress={() => setConfirmExit(true)} />
           </View>
@@ -172,13 +184,16 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row({ label, value, onPress, first = true, icon }: { label: string; value: string; onPress?: () => void; first?: boolean; icon?: ReactNode }) {
+type RowProps = { label: string; value: string; onPress?: () => void; first?: boolean; icon?: ReactNode; badge?: number; testID?: string; accessibilityLabel?: string };
+
+function Row({ label, value, onPress, first = true, icon, badge = 0, testID, accessibilityLabel }: RowProps) {
   const { colors, fs } = useTheme();
   const body = (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border, gap: 8 }}>
+    <View testID={testID} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: first ? 0 : 1, borderTopColor: colors.border, gap: 8 }}>
       {icon}
       <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600', fontSize: fs(14) }}>{label}</Text>
       {value ? <Text numberOfLines={1} style={{ color: colors.textSecondary, marginRight: 6, fontSize: fs(14), flexShrink: 1, maxWidth: '55%' }}>{value}</Text> : null}
+      {badge > 0 ? <CountBadge count={badge} /> : null}
       {onPress ? <ChevronRight color={colors.textMuted} size={16} /> : null}
     </View>
   );
@@ -186,7 +201,7 @@ function Row({ label, value, onPress, first = true, icon }: { label: string; val
     return body;
   }
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} onPress={onPress}>
       {body}
     </Pressable>
   );

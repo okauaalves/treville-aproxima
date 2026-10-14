@@ -14,12 +14,16 @@ export function normalizeAccessStatus(value: unknown): Exclude<AccessStatus, 'un
 /**
  * Decisão do gate. Modo local (sem Supabase) não tem aprovação. `status` null = consulta em andamento
  * para este usuário. A autorização real é a RLS (has_app_access); isto só decide qual tela mostrar.
+ * `knownAdmin` (e-mail de admin conhecido) não espera o servidor nem cai em "aguardando" por falta de rede.
  */
-export function decideGate(input: { configured: boolean; hasUser: boolean; status: AccessStatus | null }): GateState {
+export function decideGate(input: { configured: boolean; hasUser: boolean; status: AccessStatus | null; knownAdmin?: boolean }): GateState {
   if (!input.hasUser) {
     return 'signed_out';
   }
   if (!input.configured) {
+    return 'app';
+  }
+  if (input.knownAdmin && (input.status === null || input.status === 'unknown')) {
     return 'app';
   }
   switch (input.status) {
