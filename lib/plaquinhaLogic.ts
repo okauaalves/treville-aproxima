@@ -11,6 +11,9 @@ export const FALLBACK_REDIRECT_BASE = 'https://fyavoukktjysxtmtkspd.supabase.co/
 export const PLAQUINHA_NAME_MAX = 40;
 /** Página pública do perfil (EAS Hosting). `EXPO_PUBLIC_PROFILE_PAGE_URL` sobrescreve. */
 export const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
+/** Domínio do link curto `/t/<ID>` (API route no EAS Hosting). `EXPO_PUBLIC_SHORT_LINK_BASE` sobrescreve. */
+export const DEFAULT_SHORT_LINK_BASE = 'https://treville-aproxima.expo.app';
+export const SHORT_LINK_PATH = '/t';
 
 /** 'menu' = link de cardápio; 'profile' = Perfil completo (mini página com vários links). */
 export type DestinationType = 'url' | 'whatsapp' | 'instagram' | 'phone' | 'sms' | 'email' | 'location' | 'menu' | 'profile';
@@ -106,16 +109,30 @@ export function resolveRedirectBase(supabaseUrl: string | undefined | null): str
   return FALLBACK_REDIRECT_BASE;
 }
 
+/** Origem https do link curto (sem caminho); valor inválido cai no domínio de produção. */
+export function resolveShortLinkBase(value: string | null | undefined): string {
+  const base = (value ?? '').trim().replace(/\/+$/, '');
+  return /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(base) ? base.toLowerCase() : DEFAULT_SHORT_LINK_BASE;
+}
+
+/** Base onde se acrescenta `/<ID>`: `https://<domínio>/t`. */
+export function shortLinkPrefix(base: string): string {
+  return `${base.replace(/\/+$/, '')}${SHORT_LINK_PATH}`;
+}
+
 export function buildLinkUrl(base: string, id: string, via: 'qr' | 'nfc' = 'qr'): string {
   const url = `${base.replace(/\/+$/, '')}/${encodeURIComponent(id)}`;
   return via === 'nfc' ? `${url}?s=nfc` : url;
 }
 
-/** Forma curta para exibir: host + '/…/' + id. Nunca inventa domínio. */
+/** Forma curta para exibir. Link curto `/t/<ID>` aparece inteiro; o longo vira host + '/…/' + id. */
 export function shortDisplayUrl(url: string): string {
   try {
     const parsed = new URL(url);
     const id = parsed.pathname.split('/').filter(Boolean).pop() ?? '';
+    if (parsed.pathname === `${SHORT_LINK_PATH}/${id}`) {
+      return `${parsed.host}${parsed.pathname}`;
+    }
     return `${parsed.host}/…/${id}`;
   } catch {
     return url;

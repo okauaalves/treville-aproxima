@@ -3,13 +3,16 @@ import {
   buildDestination,
   buildLinkUrl,
   checkDestinationUrl,
+  DEFAULT_SHORT_LINK_BASE,
   EMPTY_DESTINATION,
   FALLBACK_REDIRECT_BASE,
   generateLinkId,
   LINK_ID_ALPHABET,
   parseDestination,
   resolveRedirectBase,
+  resolveShortLinkBase,
   shortDisplayUrl,
+  shortLinkPrefix,
   syncStatus,
   SYNC_LABELS,
   type ScanLog,
@@ -70,13 +73,28 @@ describe('URLs da plaquinha', () => {
     expect(buildLinkUrl('https://x.supabase.co/functions/v1/redirect', 'ABC234', 'nfc')).toBe('https://x.supabase.co/functions/v1/redirect/ABC234?s=nfc');
   });
 
-  it('getLinkUrl usa BASE_URL', () => {
+  it('getLinkUrl gera o link curto /t/<ID> no domínio do app, sem supabase.co', () => {
+    expect(BASE_URL).toMatch(/^https:\/\/[^/]+\/t$/);
     expect(getLinkUrl('ABC234')).toBe(`${BASE_URL}/ABC234`);
     expect(getLinkUrl('ABC234', 'nfc')).toBe(`${BASE_URL}/ABC234?s=nfc`);
+    expect(getLinkUrl('ABC234')).not.toContain('supabase.co');
+  });
+
+  it('domínio curto: padrão de produção, sobrescrito por EXPO_PUBLIC_SHORT_LINK_BASE válido', () => {
+    expect(resolveShortLinkBase(undefined)).toBe(DEFAULT_SHORT_LINK_BASE);
+    expect(DEFAULT_SHORT_LINK_BASE).toBe('https://treville-aproxima.expo.app');
+    expect(resolveShortLinkBase('https://Meu.Dominio.com.br/')).toBe('https://meu.dominio.com.br');
+    expect(shortLinkPrefix('https://treville-aproxima.expo.app')).toBe('https://treville-aproxima.expo.app/t');
+    expect(buildLinkUrl(shortLinkPrefix(DEFAULT_SHORT_LINK_BASE), 'ABC234', 'nfc')).toBe('https://treville-aproxima.expo.app/t/ABC234?s=nfc');
+  });
+
+  it.each(['', 'http://treville.com', 'https://treville.com/t', 'javascript:alert(1)', 'https://localhost'])('domínio curto inválido %p cai no padrão', (value) => {
+    expect(resolveShortLinkBase(value)).toBe(DEFAULT_SHORT_LINK_BASE);
   });
 
   it('abrevia sem inventar domínio', () => {
     expect(shortDisplayUrl('https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect/ABC234')).toBe('fyavoukktjysxtmtkspd.supabase.co/…/ABC234');
+    expect(shortDisplayUrl('https://treville-aproxima.expo.app/t/ABC234')).toBe('treville-aproxima.expo.app/t/ABC234');
   });
 });
 

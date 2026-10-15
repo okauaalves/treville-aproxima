@@ -19,9 +19,35 @@ export interface EditRequestRow {
 
 const CODE_RE = /^[A-Z0-9]{4,8}$/;
 
+const FUNCTION_PATH_RE = /\/functions\/v1\/redirect\/([^/]+)\/?$/;
+const SHORT_PATH_RE = /^\/t\/([^/]+)\/?$/;
+const PROFILE_PATH_RE = /^\/p\/([^/]+)\/?$/;
+
+function parseHttpUrl(text: string): URL | null {
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function codeFrom(segment: string | undefined): string | null {
+  if (!segment) {
+    return null;
+  }
+  try {
+    const code = decodeURIComponent(segment).toUpperCase();
+    return CODE_RE.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Código da plaquinha a partir do texto digitado/colado ou da URL lida na tag/QR.
- * Aceita o código puro, a URL curta (`/functions/v1/redirect/<ID>`, com ou sem `?s=nfc`) e a página `/p/<ID>`.
+ * Aceita o código puro, o link curto `/t/<ID>`, a URL longa da função (`/functions/v1/redirect/<ID>`),
+ * ambos com ou sem `?s=nfc`, e a página `/p/<ID>`.
  */
 export function parsePlaquinhaCode(raw: string | null | undefined): string | null {
   const text = (raw ?? '').trim();
@@ -32,27 +58,37 @@ export function parsePlaquinhaCode(raw: string | null | undefined): string | nul
   if (CODE_RE.test(plain)) {
     return plain;
   }
-  let path: string;
-  try {
-    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      return null;
-    }
-    path = url.pathname;
-  } catch {
+  const url = parseHttpUrl(text);
+  if (!url) {
     return null;
   }
-  const match = /\/functions\/v1\/redirect\/([^/]+)\/?$/.exec(path) ?? /^\/p\/([^/]+)\/?$/.exec(path);
-  if (!match?.[1]) {
+  const path = url.pathname;
+  return codeFrom((FUNCTION_PATH_RE.exec(path) ?? SHORT_PATH_RE.exec(path) ?? PROFILE_PATH_RE.exec(path))?.[1]);
+}
+
+/** Domínios aceitos para `/t/<ID>`: o configurado, o de produção e os aliases de preview do EAS Hosting. */
+function isShortLinkHost(host: string, shortBase: string): boolean {
+  const configured = parseHttpUrl(shortBase)?.host.toLowerCase();
+  return host === configured || /^treville-aproxima(--[a-z0-9-]+)?\.expo\.app$/.test(host);
+}
+
+/**
+ * Código só se a URL lida numa tag/QR é link de plaquinha: `/t/<ID>` no domínio curto ou a URL longa
+ * `https://<projeto>.supabase.co/functions/v1/redirect/<ID>` (tags e QRs gravados antes do link curto).
+ */
+export function plaquinhaCodeFromLink(href: string | null | undefined, shortBase: string): string | null {
+  const url = parseHttpUrl((href ?? '').trim());
+  if (!url || !/^https?:\/\//i.test((href ?? '').trim())) {
     return null;
   }
-  let code: string;
-  try {
-    code = decodeURIComponent(match[1]).toUpperCase();
-  } catch {
-    return null;
+  const host = url.host.toLowerCase();
+  if (isShortLinkHost(host, shortBase)) {
+    return codeFrom(SHORT_PATH_RE.exec(url.pathname)?.[1]);
   }
-  return CODE_RE.test(code) ? code : null;
+  if (/^[a-z0-9]{10,}\.supabase\.co$/.test(host)) {
+    return codeFrom(FUNCTION_PATH_RE.exec(url.pathname)?.[1]);
+  }
+  return null;
 }
 
 export type EditBadgeKind = 'waiting' | 'authorized' | 'denied' | 'revoked' | 'expired';

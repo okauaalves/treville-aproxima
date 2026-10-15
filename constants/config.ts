@@ -1,4 +1,4 @@
-import { resolveRedirectBase } from '@/lib/plaquinhaLogic';
+import { resolveRedirectBase, resolveShortLinkBase } from '@/lib/plaquinhaLogic';
 import { logger } from '@/utils/logger';
 
 export const APP_NAME = 'Tréville Aproxima';
@@ -20,7 +20,10 @@ export interface AppConfig {
   supabaseAnonKey: string | undefined;
   /** Só para a UI; a autorização de admin é feita no servidor. */
   adminEmail: string | undefined;
+  /** URL longa da função (tags e QRs antigos). */
   redirectBase: string;
+  /** Origem do link curto `/t/<ID>` que vai em QRs e tags novos. */
+  shortLinkBase: string;
 }
 
 /**
@@ -32,6 +35,7 @@ export const Config: AppConfig = {
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   adminEmail: process.env.EXPO_PUBLIC_ADMIN_EMAIL,
   redirectBase: resolveRedirectBase(process.env.EXPO_PUBLIC_SUPABASE_URL),
+  shortLinkBase: resolveShortLinkBase(process.env.EXPO_PUBLIC_SHORT_LINK_BASE),
 };
 
 function jwtRole(token: string): string | null {

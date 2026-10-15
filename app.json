@@ -37,6 +37,7 @@
     },
     "web": {
       "bundler": "metro",
+      "output": "server",
       "favicon": "./assets/favicon.png",
       "backgroundColor": "#EEF2FF",
       "name": "Tréville Aproxima",

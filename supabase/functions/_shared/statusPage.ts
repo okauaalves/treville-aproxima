@@ -2,7 +2,7 @@
 // Sem script, sem dados do usuário: só textos fixos.
 import { escapeHtml, PROFILE_PAGE_CSP } from './profilePage.ts';
 
-export type StatusKind = 'invalid' | 'not_found' | 'profile_off' | 'inactive' | 'invalid_destination' | 'unavailable';
+export type StatusKind = 'invalid' | 'not_found' | 'profile_off' | 'inactive' | 'invalid_destination' | 'unavailable' | 'bad_gateway';
 
 export const STATUS_PAGES: Record<StatusKind, { status: number; title: string; message: string }> = {
   invalid: { status: 400, title: 'Link inválido', message: 'Confira o QR Code ou a tag e tente de novo.' },
@@ -11,9 +11,10 @@ export const STATUS_PAGES: Record<StatusKind, { status: number; title: string; m
   inactive: { status: 410, title: 'Esta plaquinha está desativada', message: 'O dono desativou este link. Fale com quem te passou a plaquinha.' },
   invalid_destination: { status: 422, title: 'Destino inválido', message: 'O destino desta plaquinha não pode ser aberto com segurança.' },
   unavailable: { status: 503, title: 'Indisponível no momento', message: 'Não foi possível abrir esta plaquinha agora. Tente de novo em instantes.' },
+  bad_gateway: { status: 502, title: 'Tente novamente', message: 'Não conseguimos abrir esta plaquinha agora. Escaneie de novo em alguns segundos.' },
 };
 
-const BY_CODE: Record<string, StatusKind> = { '400': 'invalid', '404': 'not_found', '410': 'inactive', '422': 'invalid_destination', '503': 'unavailable' };
+const BY_CODE: Record<string, StatusKind> = { '400': 'invalid', '404': 'not_found', '410': 'inactive', '422': 'invalid_destination', '502': 'bad_gateway', '503': 'unavailable' };
 
 /** Código numérico da URL `/erro/<code>` para o tipo de página; desconhecido vira 404. */
 export function statusKindFromCode(code: string | null | undefined): StatusKind {

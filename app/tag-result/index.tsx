@@ -32,13 +32,14 @@ import {
 } from 'lucide-react-native';
 
 import { NfcPulse } from '@/components/nfc/NfcPulse';
+import { Config } from '@/constants/config';
 import { SuspiciousLinkWarning } from '@/components/nfc/SuspiciousLinkWarning';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { CHIP_LABELS, describeRecord, identifyTechnologies } from '@/core/nfc/technical';
 import { useDispatchState, useReadLock, useTagDispatch } from '@/hooks/useTagDispatch';
-import { parsePlaquinhaCode } from '@/lib/editAccessLogic';
+import { plaquinhaCodeFromLink } from '@/lib/editAccessLogic';
 import { openNfcFlow } from '@/lib/nfcEntry';
 import { getPlaquinha, plaquinhasAvailable } from '@/lib/plaquinhas';
 import { persistReadOperation, summarizeRead, type ReadKind } from '@/lib/readResult';
@@ -94,7 +95,7 @@ export default function TagResultScreen() {
   const summary = useMemo(() => summarizeRead(tag, records), [tag, records]);
   const waiting = armed && !locked;
   const user = useAuthStore((state) => state.user);
-  const plaquinhaCode = useMemo(() => (summary.href && summary.href.includes('/functions/v1/redirect/') ? parsePlaquinhaCode(summary.href) : null), [summary.href]);
+  const plaquinhaCode = useMemo(() => plaquinhaCodeFromLink(summary.href, Config.shortLinkBase), [summary.href]);
   const [foreign, setForeign] = useState<string | null>(null);
 
   // Tag de plaquinha: se o link não é do usuário (RLS não devolve), oferece pedir acesso de edição.

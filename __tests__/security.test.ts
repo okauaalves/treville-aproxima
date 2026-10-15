@@ -172,15 +172,15 @@ describe('configuração', () => {
 
   it('validateConfig não lança e lista o que falta (modo local)', () => {
     warn();
-    expect(() => validateConfig({ supabaseUrl: undefined, supabaseAnonKey: undefined, adminEmail: undefined, redirectBase: '' })).not.toThrow();
-    expect(validateConfig({ supabaseUrl: undefined, supabaseAnonKey: undefined, adminEmail: undefined, redirectBase: '' })).toHaveLength(2);
-    expect(validateConfig({ supabaseUrl: 'https://abcdefghijkl.supabase.co', supabaseAnonKey: 'eyJ.a.b', adminEmail: 'admin@treville.com', redirectBase: '' })).toEqual([]);
+    expect(() => validateConfig({ supabaseUrl: undefined, supabaseAnonKey: undefined, adminEmail: undefined, redirectBase: '', shortLinkBase: '' })).not.toThrow();
+    expect(validateConfig({ supabaseUrl: undefined, supabaseAnonKey: undefined, adminEmail: undefined, redirectBase: '', shortLinkBase: '' })).toHaveLength(2);
+    expect(validateConfig({ supabaseUrl: 'https://abcdefghijkl.supabase.co', supabaseAnonKey: 'eyJ.a.b', adminEmail: 'admin@treville.com', redirectBase: '', shortLinkBase: '' })).toEqual([]);
   });
 
   it('detecta a service_role colada no lugar da anon key', () => {
     warn();
     const payload = Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url');
-    const problems = validateConfig({ supabaseUrl: 'https://abcdefghijkl.supabase.co', supabaseAnonKey: `eyJhbGciOiJIUzI1NiJ9.${payload}.assinatura`, adminEmail: undefined, redirectBase: '' });
+    const problems = validateConfig({ supabaseUrl: 'https://abcdefghijkl.supabase.co', supabaseAnonKey: `eyJhbGciOiJIUzI1NiJ9.${payload}.assinatura`, adminEmail: undefined, redirectBase: '', shortLinkBase: '' });
     expect(problems.join(' ')).toContain('service_role');
   });
 

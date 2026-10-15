@@ -28,6 +28,12 @@ describe('lib/adminAccess', () => {
     expect(rpc).toHaveBeenCalledWith('lookup_plaquinha', { p_code: 'K7M2QX' });
   });
 
+  it('lookup aceita o link curto /t/<ID> colado', async () => {
+    rpc.mockResolvedValueOnce({ data: [{ id: 'K7M2QX', name: 'Mesa 1' }], error: null });
+    await expect(api.lookupPlaquinha('https://treville-aproxima.expo.app/t/k7m2qx?s=nfc')).resolves.toEqual({ id: 'K7M2QX', name: 'Mesa 1' });
+    expect(rpc).toHaveBeenCalledWith('lookup_plaquinha', { p_code: 'K7M2QX' });
+  });
+
   it('lookup recusa código inválido sem chamar o servidor', async () => {
     await expect(api.lookupPlaquinha('../../etc')).rejects.toThrow('Código inválido');
     expect(rpc).not.toHaveBeenCalled();

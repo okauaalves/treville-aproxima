@@ -9,8 +9,12 @@
 //   - Sem PROFILE_PAGE_URL: perfil em HTML (útil em domínio próprio) e erros em texto simples.
 //
 // O redirect em si nunca é cacheado: mudar o destino ou desativar vale no próximo scan.
+//
+// Link curto https://<app>.expo.app/t/<ID> (app/t/[id]+api.ts) chama esta função do servidor e repassa o IP do
+// visitante em `x-treville-client-ip`, aceito só com SHORT_LINK_PROXY_SECRET (secret igual nos dois lados).
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
+import { trustedProxyIp } from '../_shared/clientIp.ts';
 import { checkDestinationUrl } from '../_shared/destination.ts';
 import { PROFILE_PAGE_CSP, renderProfilePage, sanitizeProfile, type ProfilePageData } from '../_shared/profilePage.ts';
 import { STATUS_PAGES, statusText, type StatusKind } from '../_shared/statusPage.ts';
@@ -51,7 +55,10 @@ function fail(kind: StatusKind): Response {
 
 /** HMAC do IP com segredo do runtime: nunca guarda nem compara IP cru. */
 async function hashIp(request: Request): Promise<string> {
-  const ip = (request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim() ?? '';
+  const ip =
+    trustedProxyIp(request.headers, Deno.env.get('SHORT_LINK_PROXY_SECRET')) ??
+    (request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim() ??
+    '';
   if (!ip) {
     return 'sem-ip';
   }

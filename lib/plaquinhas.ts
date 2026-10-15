@@ -8,6 +8,7 @@ import {
   PLAQUINHA_NAME_MAX,
   profilePageUrl,
   resolveProfilePageBase,
+  shortLinkPrefix,
   type DestinationType,
   type RedirectLink,
   type ScanLog,
@@ -38,7 +39,8 @@ export {
 } from '@/lib/plaquinhaLogic';
 export type { DestinationForm, DestinationType, RedirectLink, ScanDay, ScanLog, ScanStats, SyncStatus } from '@/lib/plaquinhaLogic';
 
-export const BASE_URL = Config.redirectBase;
+/** `https://<domínio do app>/t`: o link curto não mostra o Supabase. Tags antigas com a URL da função seguem valendo. */
+export const BASE_URL = shortLinkPrefix(Config.shortLinkBase);
 export const PROFILE_PAGE_BASE = resolveProfilePageBase(process.env.EXPO_PUBLIC_PROFILE_PAGE_URL);
 
 /** Endereço público da mini página (EAS Hosting). Não conta scan: quem conta é a URL curta. */
