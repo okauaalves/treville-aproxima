@@ -26,10 +26,9 @@
       "versionCode": 1,
       "userInterfaceStyle": "automatic",
       "adaptiveIcon": {
-        "backgroundColor": "#0A0F1E",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png"
       },
       "permissions": [
         "android.permission.NFC"
@@ -50,11 +49,11 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#EEF2FF",
-          "image": "./assets/brand/treville-logo.png",
+          "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "dark": {
             "backgroundColor": "#0F172A",
-            "image": "./assets/brand/treville-logo.png"
+            "image": "./assets/splash-icon.png"
           }
         }
       ],
