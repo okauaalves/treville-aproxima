@@ -16,11 +16,11 @@ import { createBatch, type BatchItem } from '@/lib/adminApi';
 import { downloadCsv } from '@/lib/downloadCsv';
 import { exportHtmlAsPdf } from '@/lib/exportPdf';
 import { getLinkUrl } from '@/lib/plaquinhas';
+import { QR_BACKGROUND_COLOR } from '@/utils/qrcode';
 import {
   BATCH_MAX,
   BATCH_PREFIX_MAX,
   BATCH_TYPE_LABELS,
-  BATCH_TYPES,
   batchChunks,
   batchDestinationLabel,
   batchPdfHtml,
@@ -30,10 +30,14 @@ import {
   type BatchForm,
   type BatchType,
 } from '@/lib/qrBatch';
+import { useQrColorStore } from '@/stores/qrColorStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeContext';
+
+/** Vazio primeiro: caso principal do lote (plaquinhas para claim/impressão). */
+const TYPE_ORDER: BatchType[] = ['empty', 'url', 'whatsapp', 'instagram', 'profile'];
 
 const URL_HINT: Record<BatchType, { label: string; placeholder: string } | null> = {
   url: { label: 'URL padrão (opcional)', placeholder: 'https://seusite.com.br' },
@@ -58,7 +62,9 @@ function TypeIcon({ type }: { type: BatchType }) {
 export default function QrBatchScreen() {
   const { colors, fs } = useTheme();
   const { isPhone, isBigTablet } = useBreakpoint();
-  const [form, setForm] = useState<BatchForm>({ quantity: '10', prefix: 'Mesa', type: 'url', url: '' });
+  /** Lote admin: preferência do admin logado (mesma cor das plaquinhas dele). */
+  const qrForeground = useQrColorStore((state) => state.foreground);
+  const [form, setForm] = useState<BatchForm>({ quantity: '10', prefix: 'Lote', type: 'empty', url: '' });
   const [makePdf, setMakePdf] = useState(true);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -76,7 +82,10 @@ export default function QrBatchScreen() {
   async function exportPdf(list: BatchItem[]) {
     setExporting('pdf');
     try {
-      await exportHtmlAsPdf(batchPdfHtml(list, (id) => getLinkUrl(id), `${form.prefix.trim()} — QR Codes`), 'Exportar PDF');
+      await exportHtmlAsPdf(
+        batchPdfHtml(list, (id) => getLinkUrl(id), `${form.prefix.trim()} — QR Codes`, qrForeground),
+        'Exportar PDF',
+      );
     } catch (caught) {
       useToastStore.getState().show(caught instanceof Error ? caught.message : 'Não foi possível gerar o PDF.', 'error');
     } finally {
@@ -156,7 +165,7 @@ export default function QrBatchScreen() {
                   value={form.prefix}
                   onChangeText={(prefix) => set({ prefix })}
                   maxLength={BATCH_PREFIX_MAX}
-                  placeholder="Mesa"
+                  placeholder="Lote"
                   editable={!creating}
                   containerStyle={{ flex: 1 }}
                 />
@@ -166,7 +175,7 @@ export default function QrBatchScreen() {
               </Text>
               <Text style={[{ color: colors.textPrimary, fontSize: fs(14), marginBottom: 8 }, inter('bold')]}>Tipo de destino padrão</Text>
               <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {BATCH_TYPES.map((type) => {
+                {TYPE_ORDER.map((type) => {
                   const selected = form.type === type;
                   return (
                     <Pressable
@@ -211,7 +220,7 @@ export default function QrBatchScreen() {
                 {form.type === 'profile'
                   ? 'Cada plaquinha nasce com a página de perfil ativa.'
                   : form.type === 'empty' || !form.url.trim()
-                    ? 'Sem destino: as plaquinhas nascem desativadas até alguém configurar o destino.'
+                    ? 'Sem destino: nascem inativas e prontas para claim (QR/código) até alguém configurar o destino.'
                     : 'Todas apontam para este destino; dá para editar cada uma depois.'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -262,7 +271,7 @@ export default function QrBatchScreen() {
                   <Card padding={12}>
                     <View testID="qr-batch-item" style={{ alignItems: 'center', gap: 6 }}>
                       <View style={{ padding: 8, backgroundColor: '#FFFFFF', borderRadius: radius.sm }}>
-                        <QRCode value={getLinkUrl(item.id)} size={isPhone ? 120 : 140} color="#0F172A" backgroundColor="white" ecl="M" />
+                        <QRCode value={getLinkUrl(item.id)} size={isPhone ? 120 : 140} color={qrForeground} backgroundColor={QR_BACKGROUND_COLOR} ecl="M" />
                       </View>
                       <Text selectable style={[{ color: colors.textPrimary, fontSize: fs(16), letterSpacing: 1 }, inter('extrabold')]}>{item.id}</Text>
                       <Text numberOfLines={1} style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('semibold')]}>{item.name}</Text>

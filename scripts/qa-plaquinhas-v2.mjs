@@ -9,6 +9,8 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const BASE = process.env.QA_BASE ?? 'http://localhost:8090';
+const SHORT_LINK_BASE = (process.env.EXPO_PUBLIC_SHORT_LINK_BASE ?? 'https://nfc-manager.expo.app').replace(/\/+$/, '');
+const PROFILE_PAGE_BASE = `${SHORT_LINK_BASE}/p`;
 const MOCK_REF = process.env.QA_MOCK_REF ?? 'qamockproj0123';
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const PORT = 9337;
@@ -395,7 +397,7 @@ try {
     const profileBody = profile ? JSON.parse(profile.body) : {};
     check(
       `Perfil completo: profile_enabled e destino = página: ${tag}`,
-      profileBody.profile_enabled === true && profileBody.destination_type === 'profile' && profileBody.destination_url === `https://treville-aproxima.expo.app/p/${profileBody.id}`,
+      profileBody.profile_enabled === true && profileBody.destination_type === 'profile' && profileBody.destination_url === `${PROFILE_PAGE_BASE}/${profileBody.id}`,
       profile?.body,
     );
     const afterProfile = await evaluate('location.pathname');

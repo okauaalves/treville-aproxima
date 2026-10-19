@@ -182,7 +182,7 @@ export default function AdminScreen() {
         <AdminShortcut testID="admin-atalho-acessos" title="Gerenciar acessos" subtitle="Aprovar, bloquear e convidar usuários" icon={<UserCheck color={colors.primary} size={22} />} badge={pending} onPress={() => push('/access')} />
         <AdminShortcut testID="admin-atalho-edicao" title="Solicitações de edição" subtitle="Liberar, negar e revogar edição de plaquinhas" icon={<KeyRound color={colors.primary} size={22} />} badge={pendingEdits} onPress={() => push('/edit-requests')} />
         <AdminShortcut testID="admin-atalho-admins" title="Administradores" subtitle="Adicionar e remover admins" icon={<ShieldCheck color={colors.primary} size={22} />} onPress={() => push('/admins')} />
-        <AdminShortcut testID="admin-atalho-lote" title="Gerar QR Codes em lote" subtitle="Até 100 plaquinhas com PDF e CSV" icon={<QrCode color={colors.primary} size={22} />} onPress={() => push('/qr-batch')} />
+        <AdminShortcut testID="admin-atalho-lote" title="Gerar QR Codes em lote" subtitle="Criar plaquinhas vazias (claim) e exportar PDF/CSV" icon={<QrCode color={colors.primary} size={22} />} onPress={() => push('/qr-batch')} />
         {loading ? (
           <>
             <Skeleton height={88} />
@@ -267,6 +267,7 @@ export default function AdminScreen() {
                 <Text key={item.id} style={[{ color: colors.textPrimary, marginTop: 6 }, inter('regular')]}>{item.name} · {item.useCount}</Text>
               ))}
             </Card>
+            <PrimaryButton label="Gerar QR Codes em lote" variant="secondary" fullWidth onPress={() => push('/qr-batch')} />
             <PrimaryButton label="Exportar dados (CSV)" variant="secondary" fullWidth loading={busy} onPress={() => void exportCsv()} />
             <PrimaryButton label="Limpar operações antigas (>90 dias)" tone="danger" fullWidth disabled={busy} onPress={() => setConfirmCleanup(true)} />
           </>

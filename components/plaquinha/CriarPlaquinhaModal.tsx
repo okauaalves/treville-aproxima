@@ -24,7 +24,9 @@ import {
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
+import { useQrColorStore } from '@/stores/qrColorStore';
 import { useTheme } from '@/theme/ThemeContext';
+import { QR_BACKGROUND_COLOR } from '@/utils/qrcode';
 
 type Step = 1 | 2 | 3 | 4;
 const STEPS: Step[] = [1, 2, 3, 4];
@@ -70,6 +72,7 @@ function TypeTile({ type, selected, onPress }: { type: DestinationType; selected
 
 export function CriarPlaquinhaModal({ visible, onClose, onCreated }: { visible: boolean; onClose: () => void; onCreated: (created: CreatedPlaquinha) => void }) {
   const { colors, fs } = useTheme();
+  const qrForeground = useQrColorStore((state) => state.foreground);
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -246,7 +249,7 @@ export function CriarPlaquinhaModal({ visible, onClose, onCreated }: { visible: 
             <View style={{ gap: 14 }}>
               <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center', padding: 14, borderRadius: radius.card, borderWidth: 1, borderColor: colors.glassBorder, backgroundColor: colors.surface }}>
                 <View accessible accessibilityRole="image" accessibilityLabel={`QR Code de ${fullUrl}`} style={{ padding: 6, borderRadius: 10, backgroundColor: '#FFFFFF' }}>
-                  <QRCode value={fullUrl} size={96} color="#1E40AF" backgroundColor="white" />
+                  <QRCode value={fullUrl} size={96} color={qrForeground} backgroundColor={QR_BACKGROUND_COLOR} />
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={[{ color: colors.textSecondary, fontSize: fs(12) }, inter('semibold')]}>URL que vai no QR e na tag</Text>

@@ -11,7 +11,8 @@ import { isAllowedAvatarUrl, isProfileIcon } from '@/supabase/functions/_shared/
 
 export * from '@/lib/perfilLogic';
 
-const PROFILE_COLUMNS = 'id, full_name, display_name, bio, avatar_url, theme_color';
+const PROFILE_COLUMNS = 'id, full_name, display_name, bio, about, avatar_url, theme_color';
+const PROFILE_COLUMNS_FALLBACK = 'id, full_name, display_name, bio, avatar_url, theme_color';
 const AVATAR_SIZE = 512;
 
 function client() {
@@ -30,25 +31,49 @@ function sessionUserId(): string {
   return id;
 }
 
+function asProfile(row: Record<string, unknown> | null, userId: string): Profile {
+  if (!row) {
+    return EMPTY_PROFILE(userId);
+  }
+  return {
+    id: String(row.id ?? userId),
+    full_name: typeof row.full_name === 'string' ? row.full_name : null,
+    display_name: typeof row.display_name === 'string' ? row.display_name : null,
+    bio: typeof row.bio === 'string' ? row.bio : null,
+    about: typeof row.about === 'string' ? row.about : null,
+    avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+    theme_color: typeof row.theme_color === 'string' ? row.theme_color : EMPTY_PROFILE(userId).theme_color,
+  };
+}
+
 /** Perfil do usuário da sessão; se a linha ainda não existir, cria uma vazia. */
 export async function getProfile(): Promise<Profile> {
   const userId = sessionUserId();
   const db = client();
-  const { data, error, status } = await db.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+  let { data, error, status } = await db.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+  if (error && /about/i.test(error.message ?? '')) {
+    ({ data, error, status } = await db.from('profiles').select(PROFILE_COLUMNS_FALLBACK).eq('id', userId).maybeSingle());
+  }
   if (error) {
     throw friendly({ ...error, status }, 'Não foi possível carregar o perfil.');
   }
   if (data) {
-    return data as Profile;
+    return asProfile(data as Record<string, unknown>, userId);
   }
-  const created = await db.from('profiles').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true }).select(PROFILE_COLUMNS).maybeSingle();
+  const created = await db.from('profiles').upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true }).select(PROFILE_COLUMNS_FALLBACK).maybeSingle();
   if (created.error) {
     throw friendly({ ...created.error, status: created.status }, 'Não foi possível criar o perfil.');
   }
-  return (created.data as Profile | null) ?? EMPTY_PROFILE(userId);
+  return asProfile((created.data as Record<string, unknown> | null) ?? null, userId);
 }
 
-export async function updateProfile(input: { displayName: string; bio: string; themeColor: string; avatarUrl?: string | null }): Promise<Profile> {
+export async function updateProfile(input: {
+  displayName: string;
+  bio: string;
+  about?: string;
+  themeColor: string;
+  avatarUrl?: string | null;
+}): Promise<Profile> {
   const userId = sessionUserId();
   const check = validateProfileForm(input);
   if (!check.ok) {
@@ -61,11 +86,16 @@ export async function updateProfile(input: { displayName: string; bio: string; t
     }
     row.avatar_url = input.avatarUrl;
   }
-  const { data, error } = await client().from('profiles').upsert(row, { onConflict: 'id' }).select(PROFILE_COLUMNS).single();
+  let { data, error } = await client().from('profiles').upsert(row, { onConflict: 'id' }).select(PROFILE_COLUMNS).single();
+  if (error && /about/i.test(error.message ?? '')) {
+    const { about: _omit, ...withoutAbout } = row;
+    void _omit;
+    ({ data, error } = await client().from('profiles').upsert(withoutAbout, { onConflict: 'id' }).select(PROFILE_COLUMNS_FALLBACK).single());
+  }
   if (error) {
     throw friendly(error, 'Não foi possível salvar o perfil.');
   }
-  return data as Profile;
+  return asProfile(data as Record<string, unknown>, userId);
 }
 
 async function readBytes(uri: string): Promise<ArrayBuffer> {
@@ -106,18 +136,26 @@ export async function uploadAvatar(localUri: string): Promise<string> {
 interface LinkRow {
   id: string;
   title: string;
+  subtitle: string | null;
   url: string;
   icon: string;
   is_active: boolean;
 }
 
 function toProfileLink(row: LinkRow): ProfileLink {
-  return { id: row.id, title: row.title, url: row.url, icon: isProfileIcon(row.icon) ? row.icon : 'link', is_active: row.is_active };
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle ?? '',
+    url: row.url,
+    icon: isProfileIcon(row.icon) ? row.icon : 'link',
+    is_active: row.is_active,
+  };
 }
 
 export async function getProfileLinks(plaquinhaId: string): Promise<ProfileLink[]> {
   sessionUserId();
-  const { data, error } = await client().from('profile_links').select('id, title, url, icon, is_active, position').eq('plaquinha_id', plaquinhaId).order('position', { ascending: true });
+  const { data, error } = await client().from('profile_links').select('id, title, subtitle, url, icon, is_active, position').eq('plaquinha_id', plaquinhaId).order('position', { ascending: true });
   if (error) {
     throw friendly(error, 'Não foi possível carregar os links.');
   }
@@ -131,7 +169,14 @@ export async function saveProfileLinks(plaquinhaId: string, links: ProfileLink[]
   if (!check.ok) {
     throw new PlaquinhaError(`Link ${check.index + 1}: ${check.error}`);
   }
-  const payload = check.links.map((link) => ({ id: link.id, title: link.title, url: link.url, icon: link.icon, is_active: link.is_active }));
+  const payload = check.links.map((link) => ({
+    id: link.id,
+    title: link.title,
+    subtitle: link.subtitle || null,
+    url: link.url,
+    icon: link.icon,
+    is_active: link.is_active,
+  }));
   const { data, error } = await client().rpc('save_profile_links', { p_plaquinha_id: plaquinhaId, p_links: payload });
   if (error) {
     throw friendly(error, 'Não foi possível salvar os links.');

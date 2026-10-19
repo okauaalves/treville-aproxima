@@ -1,0 +1,8 @@
+# Tréville Aproxima — indexação pública liberada
+User-agent: *
+Allow: /
+
+# Páginas de erro / status (HTML com noindex; bloqueio explícito no crawler)
+Disallow: /p/erro/
+
+Sitemap: https://nfc-manager.expo.app/sitemap.xml

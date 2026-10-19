@@ -1,27 +1,29 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Copy, Eye, Plus } from 'lucide-react-native';
+import { Copy, Eye, ImagePlus, Plus, Upload } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Screen } from '@/components/layout/Screen';
 import { LinkEditorItem } from '@/components/perfil/LinkEditorItem';
-import { ProfileLinkIcon } from '@/components/perfil/ProfileIcons';
+import { ProfileAvatar, ProfileLinkIcon } from '@/components/perfil/ProfileIcons';
 import { ProfilePagePreview } from '@/components/perfil/ProfilePagePreview';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
 import { Toggle } from '@/components/ui/Toggle';
 import { Config } from '@/constants/config';
-import { getProfile, getProfileLinks, LINK_PRESETS, moveItem, normalizeLinkUrl, saveProfileLinks, toggleProfilePage, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfil';
+import { getProfile, getProfileLinks, LINK_PRESETS, moveItem, normalizeLinkUrl, saveProfileLinks, toggleProfilePage, updateProfile, uploadAvatar, validateProfileLinks, type Profile, type ProfileLink } from '@/lib/perfil';
 import { getLinkUrl, getPlaquinha, plaquinhasAvailable, syncProfileFallback, type RedirectLink } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
-import { PROFILE_LINKS_MAX, renderProfilePage, sanitizeProfile } from '@/supabase/functions/_shared/profilePage';
+import { DEFAULT_THEME_COLOR, PROFILE_LINKS_MAX, renderProfilePage, sanitizeProfile } from '@/supabase/functions/_shared/profilePage';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeContext';
@@ -46,6 +48,7 @@ export default function ProfileLinksScreen() {
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const withKeys = useCallback((list: ProfileLink[]): Draft[] => list.map((item) => ({ ...item, key: item.id ?? `new-${(keySeed.current += 1)}` })), []);
 
@@ -141,7 +144,13 @@ export default function ProfileLinksScreen() {
         bio: profile?.bio,
         avatarUrl: profile?.avatar_url,
         themeColor: profile?.theme_color,
-        links: items.map((item) => ({ title: item.title, url: normalizeLinkUrl(item.icon, item.url), icon: item.icon, is_active: item.is_active })),
+        links: items.map((item) => ({
+          title: item.title,
+          subtitle: item.subtitle,
+          url: normalizeLinkUrl(item.icon, item.url),
+          icon: item.icon,
+          is_active: item.is_active,
+        })),
       },
       Config.supabaseUrl,
     );
@@ -156,7 +165,39 @@ export default function ProfileLinksScreen() {
     useToastStore.getState().show(link.profile_enabled ? 'Link do perfil copiado.' : 'Link copiado. Ative a página para ele abrir o perfil.', 'success');
   }
 
+  async function pickAndUploadLogo() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
+      if (result.canceled || !result.assets[0]?.uri) {
+        return;
+      }
+      setUploadingLogo(true);
+      const logoUrl = await uploadAvatar(result.assets[0].uri);
+      const saved = await updateProfile({
+        displayName: profile?.display_name ?? '',
+        bio: profile?.bio ?? '',
+        about: profile?.about ?? '',
+        themeColor: profile?.theme_color || DEFAULT_THEME_COLOR,
+        avatarUrl: logoUrl,
+      });
+      setProfile(saved);
+      useToastStore.getState().show('Logo atualizada.', 'success');
+    } catch (failure) {
+      useToastStore.getState().show(failure instanceof Error ? failure.message : 'Não foi possível enviar a logo.', 'error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
   const enabled = link?.profile_enabled === true;
+  const logoUri = profile?.avatar_url ?? null;
+  const logoName = profile?.display_name || link?.name || 'Perfil';
+  const logoColor = profile?.theme_color || DEFAULT_THEME_COLOR;
 
   return (
     <Screen>
@@ -191,6 +232,27 @@ export default function ProfileLinksScreen() {
                   </Text>
                 </View>
                 <Toggle value={enabled} onValueChange={(value) => { if (!toggling) void setProfileEnabled(value); }} accessibilityLabel="Página de perfil ativada" />
+              </View>
+            </Card>
+
+            <Card padding={16} style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <ProfileAvatar uri={logoUri} name={logoName} color={logoColor} size={64} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Text style={[{ color: colors.textPrimary, fontSize: fs(15) }, inter('bold')]}>Logo do mini perfil</Text>
+                  <Text style={[{ color: colors.textSecondary, fontSize: fs(13), lineHeight: fs(18) }, inter('regular')]}>
+                    {logoUri ? 'Aparece na página pública. Sem logo, usamos a inicial do nome.' : 'Sem logo ainda — a página pública mostra a inicial.'}
+                  </Text>
+                  <SecondaryButton
+                    label={logoUri ? 'Trocar logo' : 'Adicionar logo'}
+                    icon={logoUri ? <Upload color={colors.textPrimary} size={16} /> : <ImagePlus color={colors.textPrimary} size={16} />}
+                    onPress={() => void pickAndUploadLogo()}
+                    loading={uploadingLogo}
+                    disabled={uploadingLogo}
+                    fullWidth
+                    accessibilityLabel={logoUri ? 'Trocar logo' : 'Adicionar logo'}
+                  />
+                </View>
               </View>
             </Card>
 
@@ -244,7 +306,7 @@ export default function ProfileLinksScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={preset.label}
                 onPress={() => {
-                  update([...items, ...withKeys([{ id: null, title: preset.title, url: '', icon: preset.icon, is_active: true }])]);
+                  update([...items, ...withKeys([{ id: null, title: preset.title, subtitle: '', url: '', icon: preset.icon, is_active: true }])]);
                   setAdding(false);
                 }}
                 style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.primaryGlow : colors.surface })}

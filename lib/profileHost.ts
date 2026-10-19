@@ -23,9 +23,11 @@ export function redirectFunctionBase(supabaseUrl: string | null | undefined): st
 interface PublicProfileJson {
   name?: string;
   bio?: string;
+  about?: string;
   avatarUrl?: string | null;
+  bannerImageUrl?: string | null;
   themeColor?: string;
-  links?: { title?: string; url?: string; icon?: string }[];
+  links?: { title?: string; subtitle?: string; url?: string; icon?: string }[];
 }
 
 const ERROR_KINDS: Record<number, StatusKind> = { 400: 'invalid', 404: 'not_found', 410: 'inactive' };
@@ -35,7 +37,7 @@ export function createProfileHandler(deps: { fetch: typeof fetch; supabaseUrl: s
   const now = deps.now ?? Date.now;
   const base = redirectFunctionBase(deps.supabaseUrl);
 
-  return async function handle(rawId: string): Promise<Response> {
+  return async function handle(rawId: string, request?: Request): Promise<Response> {
     const id = String(rawId ?? '');
     if (!LINK_ID_PATTERN.test(id)) {
       return statusResponse('invalid');
@@ -79,13 +81,23 @@ export function createProfileHandler(deps: { fetch: typeof fetch; supabaseUrl: s
       {
         displayName: data.name,
         bio: data.bio,
+        about: data.about,
         avatarUrl: data.avatarUrl,
+        bannerImageUrl: data.bannerImageUrl,
         themeColor: data.themeColor,
         links: Array.isArray(data.links) ? data.links : [],
       },
       deps.supabaseUrl,
     );
-    const html = renderProfilePage(profile);
+    let pageUrl: string | null = null;
+    if (request) {
+      try {
+        pageUrl = `${new URL(request.url).origin}/p/${encodeURIComponent(id)}`;
+      } catch {
+        pageUrl = null;
+      }
+    }
+    const html = renderProfilePage(profile, { pageUrl });
     cache.set(id, html, now());
     return new Response(html, { status: 200, headers: STATUS_HEADERS });
   };

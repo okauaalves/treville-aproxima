@@ -13,6 +13,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
+const CALLBACK_TIMEOUT_MS = 15_000;
+
 function webUrl(): string | null {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return window.location.href;
@@ -30,23 +32,47 @@ export default function AuthCallbackScreen() {
   const error = isSupabaseConfigured ? failure : 'Modo local: o login online não está configurado neste app.';
 
   useEffect(() => {
-    const key = url ?? '';
-    if (handled.current === key) {
-      return;
-    }
-    handled.current = key;
     if (!isSupabaseConfigured) {
       return;
     }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) {
+        setError('Tempo esgotado ao conectar. Tente entrar de novo.');
+      }
+    }, CALLBACK_TIMEOUT_MS);
+
+    // Sem URL ainda (deep link a frio): espera o Linking — não marca handled nem redireciona.
+    if (!url) {
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
+    }
+
+    if (handled.current === url) {
+      clearTimeout(timer);
+      return () => {
+        cancelled = true;
+      };
+    }
+    handled.current = url;
+
     void (async () => {
       try {
-        const params = parseAuthCallback(key);
+        const params = parseAuthCallback(url);
         if (classifyAuthCallback(params) === 'empty') {
           const session = await getCurrentSession();
+          if (cancelled) {
+            return;
+          }
           replace(session ? '/(tabs)' : '/(auth)/login');
           return;
         }
-        const result = await handleAuthCallbackUrl(key);
+        const result = await handleAuthCallbackUrl(url);
+        if (cancelled) {
+          return;
+        }
         if (!result.session?.user) {
           setError('Não foi possível concluir o acesso.');
           return;
@@ -56,14 +82,24 @@ export default function AuthCallbackScreen() {
         replace(result.invite ? '/auth/reset-password?mode=invite' : recovery ? '/auth/reset-password' : '/(tabs)');
       } catch (caught) {
         const session = await getCurrentSession().catch(() => null);
+        if (cancelled) {
+          return;
+        }
         if (session?.user) {
           useAuthStore.getState().setUser(session.user);
           replace(consumeRecoveryEvent() ? '/auth/reset-password' : '/(tabs)');
           return;
         }
         setError(translateAuthError(caught));
+      } finally {
+        clearTimeout(timer);
       }
     })();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [url]);
 
   return (

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { ChevronRight, Nfc, Settings, ShieldCheck, SmartphoneNfc } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,22 +16,18 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StatusCard } from '@/components/ui/StatusCard';
 import { APP_NAME } from '@/constants/config';
-import { nfcManager } from '@/core/nfc/NfcManager';
 import { getOperations } from '@/core/offline/database';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useNfc } from '@/hooks/useNfc';
 import { usePendingAccessCount } from '@/hooks/usePendingAccessCount';
-import { useDispatchState, useReadLock, useTagDispatch } from '@/hooks/useTagDispatch';
 import { openNfcFlow } from '@/lib/nfcEntry';
 import { push } from '@/lib/navigation';
-import { openReadResult } from '@/lib/readResult';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Operation } from '@/types/history';
 import { formatDayLabel } from '@/utils/formatters';
 
 const COLUMN_GAP = 32;
-const LISTENS_ON_HOME = Platform.OS === 'android' && nfcManager.getMode() === 'native';
 
 export default function HomeScreen() {
   const { colors, fs } = useTheme();
@@ -51,8 +47,6 @@ export default function HomeScreen() {
   const { isNfcSupported, isNfcEnabled, simulationAvailable } = nfc;
   const [recent, setRecent] = useState<Operation[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
-  const locked = useReadLock();
-  const dispatch = useDispatchState();
   const { isAdmin, pending } = usePendingAccessCount();
 
   useFocusEffect(
@@ -67,15 +61,8 @@ export default function HomeScreen() {
 
   const ready = isNfcSupported && isNfcEnabled && !simulationAvailable;
 
-  useTagDispatch((tag, records) => openReadResult(tag, records), { passive: true, once: true, enabled: isNfcSupported && isNfcEnabled });
-
-  const listening = LISTENS_ON_HOME && ready && dispatch.active && !dispatch.techSession && !locked;
-
+  /** Home sem sessão NFC: no Android o SO pode abrir o link da tag. Reader Mode só nas telas de leitura/gravação. */
   function readTag() {
-    nfcManager.rearmReading();
-    if (LISTENS_ON_HOME && ready && dispatch.active) {
-      return;
-    }
     void openNfcFlow('read');
   }
 
@@ -113,7 +100,7 @@ export default function HomeScreen() {
       {problem ? <StatusCard title="NFC" subtitle={problem} blur /> : null}
       <View style={{ alignItems: 'center', marginTop: 18, marginBottom: 22 }}>
         <View style={{ width: pulseSize, height: pulseSize, alignItems: 'center', justifyContent: 'center' }}>
-          <NfcPulse size={pulseSize} active={listening} />
+          <NfcPulse size={pulseSize} active={false} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Ler tag"
@@ -139,8 +126,8 @@ export default function HomeScreen() {
             <Text style={[{ color: colors.onPrimary, fontSize: fs(20) }, inter('extrabold')]}>Ler tag</Text>
           </Pressable>
         </View>
-        <Text style={[{ color: listening ? colors.primary : colors.textPrimary, fontSize: fs(22), marginTop: 14, textAlign: 'center' }, inter('extrabold')]}>
-          {listening ? 'Aproxime a tag' : 'Toque para ler'}
+        <Text style={[{ color: colors.textPrimary, fontSize: fs(22), marginTop: 14, textAlign: 'center' }, inter('extrabold')]}>
+          Toque para ler
         </Text>
       </View>
       <View testID="home-actions" style={{ marginBottom: 18 }}>

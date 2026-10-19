@@ -1,5 +1,7 @@
 import QRCode from 'qrcode';
 
+import { QR_BACKGROUND_COLOR, QR_FOREGROUND_COLOR } from '@/utils/qrcode';
+
 import { buildDestination, EMPTY_DESTINATION } from '@/lib/plaquinhaLogic';
 import { checkBatchInput, type BatchType, type Checked } from '@/supabase/functions/_shared/adminAccess';
 
@@ -115,8 +117,8 @@ export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/** QR em SVG puro (um único path), sem depender de canvas ou view-shot. */
-export function qrSvg(text: string, size = 150, margin = 2): string {
+/** QR em SVG puro (um único path), sem depender de canvas ou view-shot. Fundo sempre branco. */
+export function qrSvg(text: string, size = 150, margin = 2, foregroundColor: string = QR_FOREGROUND_COLOR): string {
   const { modules } = QRCode.create(text, { errorCorrectionLevel: 'M' });
   const count = modules.size;
   const total = count + margin * 2;
@@ -128,14 +130,20 @@ export function qrSvg(text: string, size = 150, margin = 2): string {
       }
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${total} ${total}" shape-rendering="crispEdges"><rect width="${total}" height="${total}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${total} ${total}" shape-rendering="crispEdges"><rect width="${total}" height="${total}" fill="${QR_BACKGROUND_COLOR}"/><path d="${path}" fill="${foregroundColor}"/></svg>`;
 }
 
-/** A4 com grid de 3 por linha: QR 150px, ID e nome abaixo. */
-export function batchPdfHtml(items: BatchResultItem[], linkUrl: (id: string) => string, title = 'Plaquinhas'): string {
+/** A4 com grid de 3 por linha: QR 150px, ID e nome abaixo. Usa preferência do usuário logado (admin) se passada. */
+export function batchPdfHtml(
+  items: BatchResultItem[],
+  linkUrl: (id: string) => string,
+  title = 'Plaquinhas',
+  foregroundColor: string = QR_FOREGROUND_COLOR,
+): string {
   const cells = items
     .map(
-      (item) => `<div class="cell">${qrSvg(linkUrl(item.id))}<div class="id">${escapeHtml(item.id)}</div><div class="name">${escapeHtml(item.name)}</div></div>`,
+      (item) =>
+        `<div class="cell">${qrSvg(linkUrl(item.id), 150, 2, foregroundColor)}<div class="id">${escapeHtml(item.id)}</div><div class="name">${escapeHtml(item.name)}</div></div>`,
     )
     .join('');
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>

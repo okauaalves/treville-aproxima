@@ -15,6 +15,26 @@ export const DEFAULT_TAG_CAPACITY = 144;
 export const HISTORY_PAGE_SIZE = 20;
 export const SYNC_BATCH_SIZE = 50;
 
+/**
+ * URL do APK Android de produção mais recente (artefato EAS).
+ *
+ * ATUALIZAR MANUALMENTE após cada:
+ *   eas build --platform android --profile production
+ * Cole o link de download do artefato (EAS → Builds → Download) no valor abaixo.
+ * Se `EXPO_PUBLIC_APK_URL` estiver definido no .env / EAS env, ele tem prioridade.
+ *
+ * Futuro: automatizar via EAS webhooks / REST API de builds
+ * (https://docs.expo.dev/eas/webhooks/) para publicar o link do último build
+ * sem editar este arquivo — por enquanto o valor é fixo e configurável.
+ */
+export const LATEST_APK_URL =
+process.env.EXPO_PUBLIC_APK_URL?.trim() || 'https://expo.dev/artifacts/eas/sf3I7EYcvFnRA-hrsdQ6lMsrSw6wzNlb-8YD8NagJMc.apk';
+
+/** True quando `LATEST_APK_URL` aponta para um artefato real (não o placeholder). */
+export function isLatestApkUrlConfigured(url: string = LATEST_APK_URL): boolean {
+  return Boolean(url) && !url.includes('COLE_O_LINK_DO_APK_AQUI') && /^https?:\/\//i.test(url);
+}
+
 export interface AppConfig {
   supabaseUrl: string | undefined;
   supabaseAnonKey: string | undefined;

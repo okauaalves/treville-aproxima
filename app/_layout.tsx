@@ -30,6 +30,7 @@ import { bindAuthRefresh, getCurrentSession, isSupabaseConfigured, onAuthStateCh
 import { useAccessStore } from '@/stores/accessStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useBootStore } from '@/stores/bootStore';
+import { useQrColorStore } from '@/stores/qrColorStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { AppThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { logger } from '@/utils/logger';
@@ -53,6 +54,7 @@ function RootNavigator() {
     if (known.userId !== userId || known.status === null) {
       void known.refresh(userId);
     }
+    void useQrColorStore.getState().loadForUser(userId);
     if (!userId || !isSupabaseConfigured) {
       return;
     }
@@ -91,6 +93,7 @@ function RootNavigator() {
         <Stack.Protected guard={gate === 'app'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="scan/index" />
+          <Stack.Screen name="scan-qr" />
           <Stack.Screen name="read/index" />
           <Stack.Screen name="write/index" />
           <Stack.Screen name="write/choose" />

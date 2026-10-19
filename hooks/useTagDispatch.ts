@@ -12,9 +12,12 @@ import { useNfcStore } from '@/stores/nfcStore';
 import type { NfcTag, ParsedRecord } from '@/types/nfc';
 
 /**
- * Mantém o reader mode ligado enquanto a tela está focada e o app em primeiro plano,
- * para o Android entregar a tag ao app e não ao Chrome. Ao perder o foco, ir para
- * segundo plano ou abrir uma sessão de gravação, o dispatch é liberado; volta sozinho depois.
+ * Dispatch via `registerTagEvent` + reader mode (Android).
+ *
+ * Preferir `useNfcTechSession` (`requestTechnology`) para fluxos ativos de leitura/gravação.
+ * Este hook fica para casos passivos de "hold" (ex.: tela de resultado no Android, para
+ * engolir redispatches com a tag ainda encostada). Ao perder o foco, ir para segundo plano
+ * ou abrir uma sessão de tecnologia, o dispatch é liberado.
  */
 export function useTagDispatch(
   onTag: (tag: NfcTag, records: ParsedRecord[]) => void,

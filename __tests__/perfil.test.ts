@@ -1,9 +1,10 @@
 import { moveItem, normalizeLinkUrl, validateProfileForm, validateProfileLinks, type ProfileLink } from '@/lib/perfilLogic';
-import { escapeHtml, isAllowedAvatarUrl, PROFILE_PAGE_CSP, renderProfilePage, sanitizeProfile } from '@/supabase/functions/_shared/profilePage';
+import { escapeHtml, isAllowedAvatarUrl, isAllowedBannerUrl, pickProfilePrimaryCta, PROFILE_PAGE_CSP, renderProfilePage, sanitizeProfile } from '@/supabase/functions/_shared/profilePage';
 import { checkWebhookUrl } from '@/supabase/functions/_shared/webhook';
 
 const PROJECT = 'https://abcdefghij12.supabase.co';
 const AVATAR = `${PROJECT}/storage/v1/object/public/avatars/11111111-1111-4111-8111-111111111111/avatar.jpg?v=1`;
+const BANNER = `${PROJECT}/storage/v1/object/public/avatars/11111111-1111-4111-8111-111111111111/banner.jpg`;
 
 describe('escapeHtml', () => {
   it('escapa caracteres de HTML e atributos', () => {
@@ -35,9 +36,24 @@ describe('sanitizeProfile', () => {
       PROJECT,
     );
     expect(data.links).toEqual([
-      { title: 'Site', url: 'https://exemplo.com', icon: 'site' },
-      { title: 'Ícone estranho', url: 'tel:+5511999998888', icon: 'link' },
+      { title: 'Site', subtitle: '', url: 'https://exemplo.com', icon: 'site' },
+      { title: 'Ícone estranho', subtitle: '', url: 'tel:+5511999998888', icon: 'link' },
     ]);
+  });
+
+  it('aceita subtítulo opcional e descarta excesso de tamanho', () => {
+    const data = sanitizeProfile(
+      {
+        displayName: 'Luiz',
+        links: [
+          { title: 'WhatsApp', subtitle: 'Conecte-se comigo', url: 'https://wa.me/5511999998888', icon: 'whatsapp' },
+          { title: 'Site', description: 'Meu portfólio', url: 'https://exemplo.com', icon: 'site' },
+        ],
+      },
+      PROJECT,
+    );
+    expect(data.links[0]).toMatchObject({ title: 'WhatsApp', subtitle: 'Conecte-se comigo', icon: 'whatsapp' });
+    expect(data.links[1]).toMatchObject({ title: 'Site', subtitle: 'Meu portfólio', icon: 'site' });
   });
 
   it('aceita avatar só do bucket público do próprio projeto via https', () => {
@@ -47,6 +63,14 @@ describe('sanitizeProfile', () => {
     expect(isAllowedAvatarUrl(`${PROJECT}/storage/v1/object/public/outros/a.jpg`, PROJECT)).toBe(false);
     expect(isAllowedAvatarUrl('javascript:alert(1)', PROJECT)).toBe(false);
     expect(sanitizeProfile({ avatarUrl: 'https://evil.com/x.jpg' }, PROJECT).avatarUrl).toBeNull();
+  });
+
+  it('aceita banner_image_url só de buckets públicos do projeto', () => {
+    expect(isAllowedBannerUrl(BANNER, PROJECT)).toBe(true);
+    expect(isAllowedBannerUrl(`${PROJECT}/storage/v1/object/public/brand-assets/u/b.jpg`, PROJECT)).toBe(true);
+    expect(isAllowedBannerUrl('https://evil.com/x.jpg', PROJECT)).toBe(false);
+    expect(sanitizeProfile({ bannerImageUrl: 'https://evil.com/x.jpg' }, PROJECT).bannerImageUrl).toBeNull();
+    expect(sanitizeProfile({ bannerImageUrl: BANNER }, PROJECT).bannerImageUrl).toBe(BANNER);
   });
 
   it('cor só no formato #RRGGBB', () => {
@@ -71,22 +95,85 @@ describe('renderProfilePage', () => {
       PROJECT,
     );
     const html = renderProfilePage(data);
-    expect(html).not.toMatch(/<script/i);
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&lt;script&gt;alert(4)&lt;/script&gt;');
+    expect(html).not.toMatch(/<script>[^<]*alert\(4\)/i);
     expect(html).not.toMatch(/<img src=x/i);
     expect(html).not.toMatch(/\sonerror=/i);
-    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('liquid-glass');
+    expect(html).toContain('id="glass-distortion"');
   });
 
-  it('monta a página com título, idioma, CSP e rodapé', () => {
-    const html = renderProfilePage(sanitizeProfile({ displayName: 'Ana & Cia', bio: 'Doces', themeColor: '#BE185D', links: [{ title: 'WhatsApp', url: 'https://wa.me/5511999998888', icon: 'whatsapp' }] }, PROJECT));
+  it('monta a página com título, idioma, CSP, grade e rodapé', () => {
+    const html = renderProfilePage(
+      sanitizeProfile(
+        {
+          displayName: 'Ana & Cia',
+          bio: 'Doces',
+          themeColor: '#BE185D',
+          links: [
+            { title: 'WhatsApp', subtitle: 'Fale comigo', url: 'https://wa.me/5511999998888', icon: 'whatsapp' },
+            { title: 'Instagram', url: 'https://instagram.com/ana', icon: 'instagram' },
+          ],
+        },
+        PROJECT,
+      ),
+    );
     expect(html).toContain('<html lang="pt-BR">');
     expect(html).toContain('<title>Ana &amp; Cia — Tréville Aproxima</title>');
+    expect(html).toContain('property="og:title" content="Ana &amp; Cia — Tréville Aproxima"');
+    expect(html).toContain('name="description" content="Doces"');
+    expect(html).toContain('name="robots" content="index, follow"');
+    expect(html).not.toContain('noindex');
     expect(html).toContain(PROFILE_PAGE_CSP);
     expect(html).toContain('Feito com <span>Tréville Aproxima</span>');
     expect(html).toContain('href="https://wa.me/5511999998888"');
-    expect(html).toContain('background:#BE185D');
+    expect(html).toContain('class="button-wrap"');
+    expect(html).toContain('class="cta-button"');
+    expect(html).toContain('>PAGINA</span>');
+    expect(html).toContain('class="button-shadow"');
+    expect(html).toContain('#2F5FE0');
+    expect(html).toContain('#4A7FFF');
+    expect(html).toContain('dottedGrid');
+    expect(html).toContain('class="grid"');
+    expect(html).toContain('class="link-card liquid-glass"');
+    expect(html).toContain('class="brand-card liquid-glass"');
+    expect(html).not.toContain('class="brand-card liquid-glass has-banner"');
+    expect(html).toContain('class="banner-decor"');
+    expect(html).toContain('data:image/png;base64,');
+    expect(html).not.toContain('class="waves"');
+    expect(html).toContain('icon-circle');
+    expect(html).toContain('icon-whatsapp');
+    expect(html).toContain('icon-instagram');
+    expect(html).toContain('border-radius:26px');
+    expect(html).toContain('scale(1.03)');
+    expect(html).toContain('scale(0.97)');
+    expect(html).toContain('cubic-bezier(0.25,1,0.5,1)');
+    expect(html).toContain('inset 2px 2px 1px 0 rgb(255 255 255 / 65%)');
+    expect(html).toContain('backdrop-filter:blur(8px)');
+    expect(html).toContain('surfaceScale="9"');
+    expect(html).toContain('scale="280"');
+    expect(html).toContain('.button-wrap{position:relative;z-index:2;width:100%');
+    expect(html).toContain('width:100%;box-sizing:border-box;text-decoration:none');
+    expect(html).toContain('liquid-glass');
+    expect(html).toContain('id="glass-distortion"');
+    expect(html).toContain('#4A90E2');
+    expect(html).toContain('#25D366');
+    expect(html).toContain('Fale comigo');
+    expect(html).toContain('class="link-desc"');
+    expect(html).toContain('opacity:.88');
+    expect(html.match(/class="link-desc"/g)?.length).toBe(1);
+    expect(html).toContain('prefers-color-scheme:light');
+    expect(html).toContain('#BE185D');
+    expect(html).toContain('--border:#BE185D99');
+    expect(html).toContain('--accent:#BE185D');
+    expect(html).toContain('--accent-glow:#BE185D55');
+    expect(html).toContain('border:1.5px solid var(--border');
+    expect(html).toContain('box-shadow:var(--shadow)');
     expect(html).toContain('class="avatar initial"');
+    expect(html).toContain('--page:linear-gradient');
+    expect(html).toContain('--card:#12253F');
     expect(html).not.toContain('target="_blank"');
   });
 
@@ -98,6 +185,55 @@ describe('renderProfilePage', () => {
   it('usa a foto quando é do bucket do projeto', () => {
     const html = renderProfilePage(sanitizeProfile({ displayName: 'A', avatarUrl: AVATAR }, PROJECT));
     expect(html).toContain(`<img class="avatar" src="${AVATAR.replace(/=/g, '&#61;')}"`);
+  });
+
+  it('aplica banner de fundo quando bannerImageUrl é válido', () => {
+    const html = renderProfilePage(
+      sanitizeProfile({ displayName: 'A', bannerImageUrl: BANNER, links: [{ title: 'S', url: 'https://s.com', icon: 'site' }] }, PROJECT),
+    );
+    expect(html).toContain('class="brand-card liquid-glass has-banner"');
+    expect(html).toContain('--banner-image:url(');
+    expect(html).toContain('class="banner-decor"');
+    expect(html).not.toContain('class="waves"');
+  });
+
+  it('logo só abre modal de sobre quando about está preenchido', () => {
+    const without = renderProfilePage(sanitizeProfile({ displayName: 'Ana', bio: 'Curta' }, PROJECT));
+    expect(without).not.toContain('data-about-open');
+    expect(without).not.toContain('id="about-overlay"');
+    expect(without).toContain('class="bio"');
+
+    const withAbout = sanitizeProfile(
+      { displayName: 'Ana', bio: 'Curta', about: 'Texto longo do negócio. <b>xss</b>' },
+      PROJECT,
+    );
+    expect(withAbout.about).toContain('Texto longo');
+    const html = renderProfilePage(withAbout);
+    expect(html).toContain('data-about-open');
+    expect(html).toContain('id="about-overlay"');
+    expect(html).toContain('class="about-sheet liquid-glass"');
+    expect(html).toContain('Texto longo do negócio.');
+    expect(html).toContain('&lt;b&gt;xss&lt;/b&gt;');
+    expect(html).not.toContain('<b>xss</b>');
+    expect(html).toContain('data-about-close');
+  });
+
+  it('CTA PAGINA prefere WhatsApp e escapa subtítulo', () => {
+    const data = sanitizeProfile(
+      {
+        displayName: 'X',
+        links: [
+          { title: 'Site', url: 'https://exemplo.com', icon: 'site' },
+          { title: 'Zap', subtitle: '<b>oi</b>', url: 'https://wa.me/5511999998888', icon: 'whatsapp' },
+        ],
+      },
+      PROJECT,
+    );
+    expect(pickProfilePrimaryCta(data.links)?.icon).toBe('whatsapp');
+    const html = renderProfilePage(data);
+    expect(html).toContain('&lt;b&gt;oi&lt;/b&gt;');
+    expect(html.indexOf('class="button-wrap"')).toBeLessThan(html.indexOf('class="grid"'));
+    expect(html).toContain('href="https://wa.me/5511999998888"');
   });
 });
 
@@ -159,17 +295,18 @@ describe('links do perfil', () => {
   });
 
   it('valida a lista e aponta o item com erro', () => {
-    const base: ProfileLink = { id: null, title: 'Site', url: 'treville.com.br', icon: 'site', is_active: true };
-    const ok = validateProfileLinks([base, { ...base, id: 'a', title: '  Zap ', url: '11999998888', icon: 'whatsapp' }]);
+    const base: ProfileLink = { id: null, title: 'Site', subtitle: '', url: 'treville.com.br', icon: 'site', is_active: true };
+    const ok = validateProfileLinks([base, { ...base, id: 'a', title: '  Zap ', subtitle: '  Fale  ', url: '11999998888', icon: 'whatsapp' }]);
     expect(ok).toEqual({
       ok: true,
       links: [
-        { id: null, title: 'Site', url: 'https://treville.com.br', icon: 'site', is_active: true },
-        { id: 'a', title: 'Zap', url: 'https://wa.me/5511999998888', icon: 'whatsapp', is_active: true },
+        { id: null, title: 'Site', subtitle: '', url: 'https://treville.com.br', icon: 'site', is_active: true },
+        { id: 'a', title: 'Zap', subtitle: 'Fale', url: 'https://wa.me/5511999998888', icon: 'whatsapp', is_active: true },
       ],
     });
     expect(validateProfileLinks([base, { ...base, url: 'javascript:alert(1)' }])).toMatchObject({ ok: false, index: 1 });
     expect(validateProfileLinks([{ ...base, title: ' ' }])).toMatchObject({ ok: false, index: 0 });
+    expect(validateProfileLinks([{ ...base, subtitle: 'x'.repeat(121) }])).toMatchObject({ ok: false, index: 0 });
   });
 
   it('move itens sem perder nenhum', () => {
@@ -179,9 +316,13 @@ describe('links do perfil', () => {
   });
 
   it('valida o formulário do perfil', () => {
-    expect(validateProfileForm({ displayName: ' Ana ', bio: '', themeColor: '#15803D' })).toEqual({ ok: true, value: { display_name: 'Ana', bio: null, theme_color: '#15803D' } });
+    expect(validateProfileForm({ displayName: ' Ana ', bio: '', themeColor: '#15803D' })).toEqual({
+      ok: true,
+      value: { display_name: 'Ana', bio: null, about: null, theme_color: '#15803D' },
+    });
     expect(validateProfileForm({ displayName: 'x'.repeat(61), bio: '', themeColor: '#15803D' }).ok).toBe(false);
     expect(validateProfileForm({ displayName: 'A', bio: 'x'.repeat(121), themeColor: '#15803D' }).ok).toBe(false);
+    expect(validateProfileForm({ displayName: 'A', bio: '', about: 'x'.repeat(801), themeColor: '#15803D' }).ok).toBe(false);
     expect(validateProfileForm({ displayName: 'A', bio: '', themeColor: 'blue' }).ok).toBe(false);
   });
 });

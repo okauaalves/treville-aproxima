@@ -26,8 +26,12 @@ function git(...params) {
 
 function listMigrations() {
   const names = fromDisk
-    ? readdirSync(join(root, dir)).filter((name) => name.endsWith('.sql')).map((name) => `${dir}/${name}`)
-    : git('ls-tree', '--name-only', 'HEAD', `${dir}/`).split('\n').filter((name) => name.endsWith('.sql'));
+    ? readdirSync(join(root, dir))
+        .filter((name) => name.endsWith('.sql') && !name.startsWith('_'))
+        .map((name) => `${dir}/${name}`)
+    : git('ls-tree', '--name-only', 'HEAD', `${dir}/`)
+        .split('\n')
+        .filter((name) => name.endsWith('.sql') && !name.split('/').pop()?.startsWith('_'));
   return names.sort().map((path) => ({
     path,
     sql: (fromDisk ? readFileSync(join(root, path), 'utf8') : git('show', `HEAD:${path}`)).replace(/\r\n/g, '\n').trimEnd(),

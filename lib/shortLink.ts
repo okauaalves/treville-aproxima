@@ -105,9 +105,11 @@ export function createShortLinkHandler(deps: ShortLinkDeps) {
       const check = checkDestinationUrl(location);
       return check.ok ? redirectTo(check.url) : statusResponse('invalid_destination');
     }
-    // Sem PROFILE_PAGE_URL a função devolve o perfil inline (o scan já foi contado): manda para a página daqui.
+    // Sem PROFILE_PAGE_URL a função devolve HTML inline (scan já contado).
+    // X-Treville-Page distingue Minha Página (/b) do perfil clássico (/p).
     if (response.status === 200) {
-      return redirectTo(`/p/${encodeURIComponent(id)}`);
+      const page = (response.headers.get('x-treville-page') ?? '').toLowerCase();
+      return redirectTo(page === 'brand' ? `/b/${encodeURIComponent(id)}` : `/p/${encodeURIComponent(id)}`);
     }
     return statusResponse(ERROR_KINDS[response.status] ?? 'bad_gateway');
   };

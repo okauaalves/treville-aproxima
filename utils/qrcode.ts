@@ -1,5 +1,12 @@
 import type { NfcPayload, WifiSecurity } from '@/types/nfc';
 
+import { QR_BACKGROUND_COLOR, QR_FOREGROUND_DEFAULT } from '@/lib/qrColors';
+
+export { QR_BACKGROUND_COLOR, QR_FOREGROUND_DEFAULT };
+
+/** Default dos módulos do QR (preto). Preferência do usuário: useQrColorStore / getEffectiveQrForeground. */
+export const QR_FOREGROUND_COLOR = QR_FOREGROUND_DEFAULT;
+
 function wifiType(security: WifiSecurity | undefined): string {
   if (security === 'nopass' || !security) {
     return 'nopass';

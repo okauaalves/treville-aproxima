@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Platform, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/layout/Screen';
@@ -14,6 +14,7 @@ import { setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useNfc } from '@/hooks/useNfc';
+import { useNfcTechSession } from '@/hooks/useNfcTechSession';
 import { useTagDispatch } from '@/hooks/useTagDispatch';
 import { replace } from '@/lib/navigation';
 import { openReadResult } from '@/lib/readResult';
@@ -21,11 +22,14 @@ import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 import type { NfcTag, ParsedRecord } from '@/types/nfc';
 
+/** Após identificar (intent=write), engole redispatches no Android enquanto a tag segue encostada. */
+const HOLDS_AFTER_DETECT = Platform.OS === 'android' && nfcManager.getMode() === 'native';
+
 function readParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-/** Modo leitura (intent=read) e identificação antes de gravar (intent=write). As duas mantêm o reader mode ligado enquanto focadas. */
+/** Modo leitura (intent=read) e identificação antes de gravar (intent=write). Sessão via requestTechnology + Reader Mode. */
 export default function ScanScreen() {
   const { colors, fs } = useTheme();
   const params = useLocalSearchParams<{ intent?: string; contentType?: string; prefill?: string; plaquinha?: string; test?: string }>();
@@ -38,12 +42,13 @@ export default function ScanScreen() {
   const short = useBreakpoint().height < 500;
   const [tag, setTag] = useState<NfcTag | null>(null);
   const [records, setRecords] = useState<ParsedRecord[]>([]);
+  const waiting = !tag;
 
   useEffect(() => {
     nfcManager.rearmReading();
   }, []);
 
-  useTagDispatch(
+  useNfcTechSession(
     (found, foundRecords) => {
       if (intent === 'read') {
         openReadResult(found, foundRecords, 'replace');
@@ -53,7 +58,17 @@ export default function ScanScreen() {
       setTag(found);
       setRecords(foundRecords);
     },
-    { once: true },
+    {
+      enabled: waiting,
+      once: true,
+      alertMessage: intent === 'write' ? 'Aproxime a tag que será gravada' : 'Aproxime a tag para ler',
+    },
+  );
+
+  // Hold só depois da captura (write): evita Chrome abrir o link com a tag ainda encostada.
+  useTagDispatch(
+    () => undefined,
+    { enabled: HOLDS_AFTER_DETECT && intent === 'write' && !!tag, once: true, passive: true },
   );
 
   const detected = !!tag;

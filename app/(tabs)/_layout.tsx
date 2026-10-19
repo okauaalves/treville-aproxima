@@ -18,6 +18,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="history" options={{ title: 'Histórico' }} />
       <Tabs.Screen name="templates" options={{ title: 'Templates' }} />
       <Tabs.Screen name="plaquinhas" options={{ title: 'Plaquinhas' }} />
+      <Tabs.Screen name="pagina" options={{ title: 'Minha Página' }} />
       <Tabs.Screen name="settings" options={{ title: 'Ajustes' }} />
     </Tabs>
   );

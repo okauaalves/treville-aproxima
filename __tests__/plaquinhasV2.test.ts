@@ -195,7 +195,8 @@ describe('página pública /p/[id] (EAS Hosting)', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     const html = await response.text();
     expect(html).toContain('Luiz &lt;b&gt;Tréville&lt;/b&gt;');
-    expect(html).not.toMatch(/<script/i);
+    // Liquid glass usa <script> inline (CSP: script-src 'unsafe-inline'); bloqueia externos/XSS.
+    expect(html).not.toMatch(/<script[^>]+src=/i);
     expect(html).not.toContain('javascript:');
     expect(html).not.toContain('evil.example.com');
     expect(html).toContain('href="https://instagram.com/treville"');

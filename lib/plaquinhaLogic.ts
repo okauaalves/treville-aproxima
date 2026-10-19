@@ -10,9 +10,8 @@ export const LINK_ID_LENGTH = 6;
 export const FALLBACK_REDIRECT_BASE = 'https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect';
 export const PLAQUINHA_NAME_MAX = 40;
 /** Página pública do perfil (EAS Hosting). `EXPO_PUBLIC_PROFILE_PAGE_URL` sobrescreve. */
-export const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
-/** Domínio do link curto `/t/<ID>` (API route no EAS Hosting). `EXPO_PUBLIC_SHORT_LINK_BASE` sobrescreve. */
-export const DEFAULT_SHORT_LINK_BASE = 'https://treville-aproxima.expo.app';
+export const DEFAULT_SHORT_LINK_BASE = 'https://nfc-manager.expo.app';
+export const DEFAULT_PROFILE_PAGE_BASE = `${DEFAULT_SHORT_LINK_BASE}/p`;
 export const SHORT_LINK_PATH = '/t';
 
 /** 'menu' = link de cardápio; 'profile' = Perfil completo (mini página com vários links). */
@@ -83,7 +82,10 @@ export const DESTINATION_LABELS: Record<DestinationType, string> = {
 
 export function resolveProfilePageBase(value: string | null | undefined): string {
   const base = (value ?? '').trim().replace(/\/+$/, '');
-  return /^https:\/\/[a-z0-9.-]+(\/[A-Za-z0-9/_-]*)?$/i.test(base) ? base : DEFAULT_PROFILE_PAGE_BASE;
+  if (/^https:\/\/[a-z0-9.-]+(\/[A-Za-z0-9/_-]*)?$/i.test(base)) {
+    return base;
+  }
+  return `${resolveShortLinkBase(process.env.EXPO_PUBLIC_SHORT_LINK_BASE)}/p`;
 }
 
 export function profilePageUrl(base: string, id: string): string {

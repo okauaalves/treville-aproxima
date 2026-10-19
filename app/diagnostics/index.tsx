@@ -23,6 +23,7 @@ import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { chipLabel, classifyTag, summarizeRecords } from '@/core/nfc/technical';
 import { useNfc } from '@/hooks/useNfc';
 import { useDispatchState } from '@/hooks/useTagDispatch';
+import { useNfcTechSession } from '@/hooks/useNfcTechSession';
 import { useUidHash } from '@/hooks/useUidHash';
 import { push, replace } from '@/lib/navigation';
 import { useNfcStore } from '@/stores/nfcStore';
@@ -39,29 +40,20 @@ export default function DiagnosticsScreen() {
   const [waiting, setWaiting] = useState(false);
   const [checks, setChecks] = useState<DeviceCheck[]>([]);
   const [timedOut, setTimedOut] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tag = report?.tag ?? null;
   const uidHash = useUidHash(tag?.uid);
+
+  useEffect(() => {
+    nfcRef.current = nfc;
+  });
 
   useEffect(() => {
     void deviceChecks().then(setChecks);
   }, []);
 
-  function clearTimer() {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-  }
-
   useEffect(() => {
-    const api = nfcRef.current;
-    const pending = timer;
     return () => {
-      if (pending.current) {
-        clearTimeout(pending.current);
-      }
-      void api.unregisterTagEvent('diagnostics');
+      void nfcManager.cancelRequest().catch(() => undefined);
     };
   }, []);
 
@@ -80,39 +72,36 @@ export default function DiagnosticsScreen() {
     onTagChanged: (next) => show(next),
   });
 
+  useNfcTechSession(
+    async (detected) => {
+      const result = await nfcRef.current.runDiagnostic(detected);
+      show(detected, result);
+      setWaiting(false);
+    },
+    {
+      enabled: waiting,
+      once: true,
+      timeoutMs: NFC_DIAGNOSTIC_TIMEOUT_MS,
+      alertMessage: 'Aproxime a tag para diagnosticar',
+      onError: (error) => {
+        setWaiting(false);
+        if (error.code === 'TIMEOUT') {
+          setTimedOut(true);
+        }
+      },
+    },
+  );
+
   async function start() {
     const assessment = await assessNfc();
     if (!assessment.ready && !(assessment.testMode && nfcManager.isSimulation())) {
       replace(`/nfc-unavailable?intent=read&reason=${assessment.reason ?? 'unsupported'}`);
       return;
     }
-    clearTimer();
     setTimedOut(false);
-    setWaiting(true);
     setReport(null);
     nfcManager.rearmReading();
-    // Leitura única: o reader mode segue ligado (só descarta tags) até sair da tela; desligá-lo com a
-    // tag encostada faria o Android abrir o link ou reabrir o app pelo intent.
-    await nfc.registerTagEvent(
-      async (detected) => {
-        clearTimer();
-        const result = await nfcRef.current.runDiagnostic(detected);
-        show(detected, result);
-        setWaiting(false);
-      },
-      () => {
-        clearTimer();
-        setWaiting(false);
-      },
-      'diagnostics',
-      { once: true },
-    );
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      setWaiting(false);
-      setTimedOut(true);
-      void nfcRef.current.unregisterTagEvent('diagnostics');
-    }, NFC_DIAGNOSTIC_TIMEOUT_MS);
+    setWaiting(true);
   }
 
   const tagClass = tag ? classifyTag(tag.technologies, tag.capabilities.supportsNdef) : null;
@@ -126,7 +115,7 @@ export default function DiagnosticsScreen() {
         <ReaderModeBadge style={{ alignSelf: 'flex-start' }} />
         {nfcManager.getMode() === 'native' ? (
           <Text style={[{ color: colors.textSecondary, fontSize: fs(13) }, inter('regular')]}>
-            Reader mode: {dispatch.active ? `ativo (${dispatch.owner === 'diagnostics' ? 'diagnóstico' : 'tela atual'})` : dispatch.techSession ? 'sessão de gravação/leitura aberta' : 'inativo'}
+            Reader mode: {dispatch.techSession ? 'sessão ativa (requestTechnology)' : dispatch.active ? 'hold (registerTagEvent)' : 'inativo'}
           </Text>
         ) : null}
         {checks.map((item) => (

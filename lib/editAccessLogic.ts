@@ -1,5 +1,7 @@
 // Regras puras da autorização de edição e da gestão de admins (testáveis sem Supabase).
 
+import { DEFAULT_SHORT_LINK_BASE } from '@/lib/plaquinhaLogic';
+
 export const PRIMARY_ADMIN_EMAIL = 'previaemailofc@gmail.com';
 export const EDIT_REASON_MAX = 300;
 export const ADMIN_NAME_MAX = 80;
@@ -66,10 +68,24 @@ export function parsePlaquinhaCode(raw: string | null | undefined): string | nul
   return codeFrom((FUNCTION_PATH_RE.exec(path) ?? SHORT_PATH_RE.exec(path) ?? PROFILE_PATH_RE.exec(path))?.[1]);
 }
 
+function easPreviewHostPattern(originHost: string): RegExp {
+  const slug = originHost.replace(/\.expo\.app$/i, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${slug}(--[a-z0-9-]+)?\\.expo\\.app$`, 'i');
+}
+
 /** Domínios aceitos para `/t/<ID>`: o configurado, o de produção e os aliases de preview do EAS Hosting. */
 function isShortLinkHost(host: string, shortBase: string): boolean {
+  const normalized = host.toLowerCase();
   const configured = parseHttpUrl(shortBase)?.host.toLowerCase();
-  return host === configured || /^treville-aproxima(--[a-z0-9-]+)?\.expo\.app$/.test(host);
+  if (configured && normalized === configured) {
+    return true;
+  }
+  const productionHost = parseHttpUrl(DEFAULT_SHORT_LINK_BASE)?.host.toLowerCase();
+  if (productionHost && (normalized === productionHost || easPreviewHostPattern(productionHost).test(normalized))) {
+    return true;
+  }
+  // Tags/QR antigos no domínio órfão ainda devem ser reconhecidos na leitura.
+  return /^treville-aproxima(--[a-z0-9-]+)?\.expo\.app$/.test(normalized);
 }
 
 /**

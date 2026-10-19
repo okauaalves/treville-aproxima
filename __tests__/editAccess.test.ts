@@ -23,14 +23,14 @@ describe('parsePlaquinhaCode', () => {
   });
 
   it('extrai do link curto /t/<ID> (QR e NFC)', () => {
-    expect(parsePlaquinhaCode('https://treville-aproxima.expo.app/t/K7M2QX')).toBe('K7M2QX');
-    expect(parsePlaquinhaCode('https://treville-aproxima.expo.app/t/k7m2qx?s=nfc')).toBe('K7M2QX');
-    expect(parsePlaquinhaCode('treville-aproxima.expo.app/t/K7M2QX/')).toBe('K7M2QX');
-    expect(parsePlaquinhaCode('https://treville-aproxima.expo.app/t/AB_CD')).toBeNull();
+    expect(parsePlaquinhaCode('https://nfc-manager.expo.app/t/K7M2QX')).toBe('K7M2QX');
+    expect(parsePlaquinhaCode('https://nfc-manager.expo.app/t/k7m2qx?s=nfc')).toBe('K7M2QX');
+    expect(parsePlaquinhaCode('nfc-manager.expo.app/t/K7M2QX/')).toBe('K7M2QX');
+    expect(parsePlaquinhaCode('https://nfc-manager.expo.app/t/AB_CD')).toBeNull();
   });
 
   it('extrai da página pública /p/<ID>', () => {
-    expect(parsePlaquinhaCode('https://treville-aproxima.expo.app/p/K7M2QX')).toBe('K7M2QX');
+    expect(parsePlaquinhaCode('https://nfc-manager.expo.app/p/K7M2QX')).toBe('K7M2QX');
   });
 
   it('recusa formatos fora de /^[A-Z0-9]{4,8}$/ e URLs sem código', () => {
@@ -48,24 +48,25 @@ describe('parsePlaquinhaCode', () => {
 });
 
 describe('plaquinhaCodeFromLink (URL lida na tag/QR)', () => {
-  const SHORT = 'https://treville-aproxima.expo.app';
+  const SHORT = 'https://nfc-manager.expo.app';
 
   it('reconhece o link curto novo e a URL longa das tags antigas', () => {
-    expect(plaquinhaCodeFromLink('https://treville-aproxima.expo.app/t/K7M2QX?s=nfc', SHORT)).toBe('K7M2QX');
-    expect(plaquinhaCodeFromLink('https://treville-aproxima.expo.app/t/k7m2qx', SHORT)).toBe('K7M2QX');
-    expect(plaquinhaCodeFromLink('https://treville-aproxima--tt3beilbk6.expo.app/t/K7M2QX', SHORT)).toBe('K7M2QX');
+    expect(plaquinhaCodeFromLink('https://nfc-manager.expo.app/t/K7M2QX?s=nfc', SHORT)).toBe('K7M2QX');
+    expect(plaquinhaCodeFromLink('https://nfc-manager.expo.app/t/k7m2qx', SHORT)).toBe('K7M2QX');
+    expect(plaquinhaCodeFromLink('https://nfc-manager--tt3beilbk6.expo.app/t/K7M2QX', SHORT)).toBe('K7M2QX');
     expect(plaquinhaCodeFromLink('https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect/K7M2QX?s=nfc', SHORT)).toBe('K7M2QX');
     expect(plaquinhaCodeFromLink('https://meu.dominio.com/t/K7M2QX', 'https://meu.dominio.com')).toBe('K7M2QX');
+    expect(plaquinhaCodeFromLink('https://treville-aproxima.expo.app/t/K7M2QX?s=nfc', SHORT)).toBe('K7M2QX');
   });
 
   it('ignora /t/ em outros domínios, outros caminhos e links que não são web', () => {
     expect(plaquinhaCodeFromLink('https://exemplo.com/t/K7M2QX', SHORT)).toBeNull();
-    expect(plaquinhaCodeFromLink('https://treville-aproxima.expo.app/p/K7M2QX', SHORT)).toBeNull();
+    expect(plaquinhaCodeFromLink('https://nfc-manager.expo.app/p/K7M2QX', SHORT)).toBeNull();
     expect(plaquinhaCodeFromLink('https://exemplo.com/functions/v1/redirect/K7M2QX', SHORT)).toBeNull();
-    expect(plaquinhaCodeFromLink('treville-aproxima.expo.app/t/K7M2QX', SHORT)).toBeNull();
+    expect(plaquinhaCodeFromLink('nfc-manager.expo.app/t/K7M2QX', SHORT)).toBeNull();
     expect(plaquinhaCodeFromLink('K7M2QX', SHORT)).toBeNull();
     expect(plaquinhaCodeFromLink(null, SHORT)).toBeNull();
-    expect(plaquinhaCodeFromLink('https://treville-aproxima.expo.app/t/AB_CD', SHORT)).toBeNull();
+    expect(plaquinhaCodeFromLink('https://nfc-manager.expo.app/t/AB_CD', SHORT)).toBeNull();
   });
 });
 

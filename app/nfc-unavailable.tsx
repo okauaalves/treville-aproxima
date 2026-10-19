@@ -9,6 +9,7 @@ import { Screen } from '@/components/layout/Screen';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { isLatestApkUrlConfigured, LATEST_APK_URL } from '@/constants/config';
 import { assessNfc, type NfcAssessment, type NfcBlockReason } from '@/core/nfc/readiness';
 import { nfcManager } from '@/core/nfc/NfcManager';
 import { replace } from '@/lib/navigation';
@@ -19,9 +20,6 @@ import { useTheme } from '@/theme/ThemeContext';
 function readParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
-
-/** Link opcional para o APK (ex.: página de builds do EAS). Sem ele a tela mostra só a instrução. */
-const APK_URL = process.env.EXPO_PUBLIC_APK_URL ?? '';
 
 const COPY: Record<NfcBlockReason, { title: string; message: string }> = {
   'expo-go': {
@@ -132,8 +130,8 @@ export default function NfcUnavailableScreen() {
   }
 
   function downloadApp() {
-    if (APK_URL) {
-      void Linking.openURL(APK_URL);
+    if (isLatestApkUrlConfigured()) {
+      void Linking.openURL(LATEST_APK_URL);
       return;
     }
     setShowApkHelp(true);

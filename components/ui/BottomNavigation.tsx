@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Clock, House, LayoutGrid, QrCode, Settings } from 'lucide-react-native';
+import { Clock, Globe, House, LayoutGrid, QrCode, Settings } from 'lucide-react-native';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +15,7 @@ const ICONS = {
   history: Clock,
   templates: LayoutGrid,
   plaquinhas: QrCode,
+  pagina: Globe,
   settings: Settings,
 } as const;
 
@@ -23,6 +24,7 @@ const LABELS: Record<string, string> = {
   history: 'Histórico',
   templates: 'Templates',
   plaquinhas: 'Plaquinhas',
+  pagina: 'Página',
   settings: 'Ajustes',
 };
 

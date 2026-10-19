@@ -1,0 +1,42 @@
+{
+  "prefix": "QABatchshp8",
+  "adminEmail": "previaemailofc@gmail.com",
+  "rows": [
+    {
+      "id": "8QFVRD",
+      "name": "QABatchshp8 1",
+      "destination_type": "empty",
+      "is_active": false,
+      "profile_enabled": false
+    },
+    {
+      "id": "886R5L",
+      "name": "QABatchshp8 2",
+      "destination_type": "empty",
+      "is_active": false,
+      "profile_enabled": false
+    },
+    {
+      "id": "2FPSCJ",
+      "name": "QABatchshp8 3",
+      "destination_type": "empty",
+      "is_active": false,
+      "profile_enabled": false
+    },
+    {
+      "id": "78S2MH",
+      "name": "QABatchshp8 4",
+      "destination_type": "empty",
+      "is_active": false,
+      "profile_enabled": false
+    },
+    {
+      "id": "3QJKW2",
+      "name": "QABatchshp8 5",
+      "destination_type": "empty",
+      "is_active": false,
+      "profile_enabled": false
+    }
+  ],
+  "ok": true
+}

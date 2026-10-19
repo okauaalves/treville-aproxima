@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const BASE = process.env.QA_BASE ?? 'http://localhost:8097';
+const PROFILE_PAGE_BASE = `${(process.env.EXPO_PUBLIC_SHORT_LINK_BASE ?? 'https://nfc-manager.expo.app').replace(/\/+$/, '')}/p`;
 const MOCK_REF = process.env.QA_MOCK_REF ?? 'qamockproj0123';
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const PORT = 9342;
@@ -52,10 +53,10 @@ const MOCK = `(() => {
       links: [
         link('CART01', M, 'Meu cartão', 'https://instagram.com/restaurante_carla', 'instagram', { scan_count: 42, nfc_synced: true }),
         link('MESA01', A, 'Mesa 1 — Bistrô', 'https://wa.me/5511999990001', 'whatsapp', { scan_count: 17 }),
-        link('MESA02', A, 'Mesa 2 — Bistrô', 'https://treville-aproxima.expo.app/p/MESA02', 'empty', { is_active: false }),
+        link('MESA02', A, 'Mesa 2 — Bistrô', `${PROFILE_PAGE_BASE}/MESA02`, 'empty', { is_active: false }),
         link('MESA03', A, 'Balcão', 'https://exemplo.com/balcao'),
-        link('MESA04', A, 'Mesa 4 — Bistrô', 'https://treville-aproxima.expo.app/p/MESA04', 'empty', { is_active: false }),
-        link('MESA05', A, 'Mesa 5 — Bistrô', 'https://treville-aproxima.expo.app/p/MESA05', 'empty', { is_active: false }),
+        link('MESA04', A, 'Mesa 4 — Bistrô', `${PROFILE_PAGE_BASE}/MESA04`, 'empty', { is_active: false }),
+        link('MESA05', A, 'Mesa 5 — Bistrô', `${PROFILE_PAGE_BASE}/MESA05`, 'empty', { is_active: false }),
         link('LOJA77', A, 'Vitrine Loja', 'https://exemplo.com/loja'),
       ],
       requests: [

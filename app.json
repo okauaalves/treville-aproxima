@@ -13,10 +13,12 @@
       "bundleIdentifier": "com.treville.aproxima",
       "backgroundColor": "#EEF2FF",
       "infoPlist": {
-        "NFCReaderUsageDescription": "Usado para ler e gravar tags NFC."
+        "NFCReaderUsageDescription": "Usado para ler e gravar tags NFC.",
+        "NSCameraUsageDescription": "Usado para escanear o QR Code da plaquinha."
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": [
+          "NDEF",
           "NDEF"
         ]
       }
@@ -31,7 +33,10 @@
         "monochromeImage": "./assets/adaptive-icon-monochrome.png"
       },
       "permissions": [
-        "android.permission.NFC"
+        "android.permission.NFC",
+        "android.permission.CAMERA",
+        "android.permission.NFC",
+        "android.permission.CAMERA"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -65,7 +70,15 @@
       "./plugins/withTaskerQueries",
       "expo-web-browser",
       "expo-sharing",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Usado para escanear o QR Code da plaquinha.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -73,8 +86,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "81a1f769-7602-4403-b4e2-6d6776ba6339"
+        "projectId": "9ac2fd1d-720e-4220-adb4-ea24b766f4ee"
       }
+    },
+    "owner": "trevilleaproxima",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9ac2fd1d-720e-4220-adb4-ea24b766f4ee"
     }
   }
 }

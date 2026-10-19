@@ -5,9 +5,11 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { Modal } from '@/components/ui/Modal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { useQrColorStore } from '@/stores/qrColorStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
+import { QR_BACKGROUND_COLOR } from '@/utils/qrcode';
 
 async function share(message: string, title: string): Promise<void> {
   try {
@@ -33,6 +35,7 @@ export function ShareSheet({
   onClose: () => void;
 }) {
   const { colors, fs } = useTheme();
+  const qrForeground = useQrColorStore((state) => state.foreground);
   const [showQr, setShowQr] = useState(false);
 
   function close() {
@@ -45,7 +48,7 @@ export function ShareSheet({
       {showQr && url ? (
         <View style={{ alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <View style={{ padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12 }}>
-            <QRCode value={url} size={200} color="#0F172A" backgroundColor="white" ecl="M" />
+            <QRCode value={url} size={200} color={qrForeground} backgroundColor={QR_BACKGROUND_COLOR} ecl="M" />
           </View>
           <Text selectable numberOfLines={2} ellipsizeMode="middle" style={[{ alignSelf: 'stretch', color: colors.textSecondary, fontSize: fs(12), textAlign: 'center' }, inter('regular')]}>{url}</Text>
         </View>

@@ -138,9 +138,9 @@ describe('lote de plaquinhas', () => {
 
   it('linhas: Vazio nasce inativa com destino reservado válido; Perfil com página ativa', () => {
     const ids = ['AAAAAA', 'BBBBBB'];
-    const base = 'https://treville-aproxima.expo.app/p/';
+    const base = 'https://nfc-manager.expo.app/p/';
     const empty = buildBatchRows({ quantity: 2, start: 1, prefix: 'Mesa', type: 'empty', url: null }, 'u1', ids, base);
-    expect(empty[0]).toEqual({ id: 'AAAAAA', user_id: 'u1', name: 'Mesa 1', destination_url: 'https://treville-aproxima.expo.app/p/AAAAAA', destination_type: 'empty', is_active: false, profile_enabled: false });
+    expect(empty[0]).toEqual({ id: 'AAAAAA', user_id: 'u1', name: 'Mesa 1', destination_url: 'https://nfc-manager.expo.app/p/AAAAAA', destination_type: 'empty', is_active: false, profile_enabled: false });
     expect(empty.every((row) => /^(https?|mailto|tel|sms):/i.test(row.destination_url))).toBe(true);
     const profile = buildBatchRows({ quantity: 1, start: 4, prefix: 'Cartão', type: 'profile', url: null }, 'u1', ids, base);
     expect(profile[0]).toMatchObject({ name: 'Cartão 4', destination_type: 'profile', is_active: true, profile_enabled: true });
@@ -191,9 +191,15 @@ describe('exportação CSV/PDF', () => {
     const svg = qrSvg('https://r.co/AAAAAA');
     expect(svg).toMatch(/^<svg [^>]*width="150" height="150"/);
     expect(svg).toContain('<path d="M');
+    expect(svg).toContain('fill="#FFFFFF"');
+    expect(svg).toContain('fill="#000000"');
+    expect(svg).not.toContain('fill="#1E40AF"');
+    expect(svg).not.toContain('fill="#0F172A"');
     const html = batchPdfHtml([{ id: 'AAAAAA', name: '<script>x</script>', destination_url: '', destination_type: 'url' }], (id) => `https://r.co/${id}`);
     expect(html).toContain('grid-template-columns: repeat(3, 1fr)');
     expect(html).toContain('&lt;script&gt;x&lt;/script&gt;');
     expect(html).not.toContain('<script>');
+    expect(html).toContain('fill="#000000"');
+    expect(html).toContain('fill="#FFFFFF"');
   });
 });

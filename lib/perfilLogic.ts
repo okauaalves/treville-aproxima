@@ -1,10 +1,12 @@
 import { sanitizeForStorage, sanitizeText, sanitizeUrl } from '@/core/validation/securityValidator';
 import {
+  ABOUT_MAX,
   BIO_MAX,
   DEFAULT_THEME_COLOR,
   DISPLAY_NAME_MAX,
   isProfileIcon,
   isSafeColor,
+  LINK_SUBTITLE_MAX,
   LINK_TITLE_MAX,
   PROFILE_LINKS_MAX,
   type ProfileIcon,
@@ -15,6 +17,7 @@ export interface Profile {
   full_name: string | null;
   display_name: string | null;
   bio: string | null;
+  about: string | null;
   avatar_url: string | null;
   theme_color: string;
 }
@@ -22,6 +25,7 @@ export interface Profile {
 export interface ProfileLink {
   id: string | null;
   title: string;
+  subtitle: string;
   url: string;
   icon: ProfileIcon;
   is_active: boolean;
@@ -108,33 +112,41 @@ export function validateProfileLinks(links: ProfileLink[]): LinkCheck {
     if (title.length > LINK_TITLE_MAX) {
       return { ok: false, index, error: `Título com no máximo ${LINK_TITLE_MAX} caracteres.` };
     }
+    const subtitle = sanitizeText(link.subtitle ?? '');
+    if (subtitle.length > LINK_SUBTITLE_MAX) {
+      return { ok: false, index, error: `Subtítulo com no máximo ${LINK_SUBTITLE_MAX} caracteres.` };
+    }
     const icon = isProfileIcon(link.icon) ? link.icon : 'link';
     const check = sanitizeUrl(normalizeLinkUrl(icon, sanitizeText(link.url)));
     if (!check.ok) {
       return { ok: false, index, error: check.error };
     }
-    result.push({ id: link.id, title, url: check.url, icon, is_active: link.is_active });
+    result.push({ id: link.id, title, subtitle, url: check.url, icon, is_active: link.is_active });
   }
   return { ok: true, links: result };
 }
 
 export type ProfileFormCheck =
-  | { ok: true; value: { display_name: string | null; bio: string | null; theme_color: string } }
+  | { ok: true; value: { display_name: string | null; bio: string | null; about: string | null; theme_color: string } }
   | { ok: false; error: string };
 
-export function validateProfileForm(input: { displayName: string; bio: string; themeColor: string }): ProfileFormCheck {
+export function validateProfileForm(input: { displayName: string; bio: string; about?: string; themeColor: string }): ProfileFormCheck {
   const name = sanitizeText(input.displayName);
   const bio = sanitizeForStorage(input.bio);
+  const about = sanitizeForStorage(input.about ?? '');
   if (name.length > DISPLAY_NAME_MAX) {
     return { ok: false, error: `Nome com no máximo ${DISPLAY_NAME_MAX} caracteres.` };
   }
   if (bio.length > BIO_MAX) {
-    return { ok: false, error: `Bio com no máximo ${BIO_MAX} caracteres.` };
+    return { ok: false, error: `Frase de efeito com no máximo ${BIO_MAX} caracteres.` };
+  }
+  if (about.length > ABOUT_MAX) {
+    return { ok: false, error: `Sobre com no máximo ${ABOUT_MAX} caracteres.` };
   }
   if (!isSafeColor(input.themeColor)) {
     return { ok: false, error: 'Cor inválida.' };
   }
-  return { ok: true, value: { display_name: name || null, bio: bio || null, theme_color: input.themeColor } };
+  return { ok: true, value: { display_name: name || null, bio: bio || null, about: about || null, theme_color: input.themeColor } };
 }
 
 export function moveItem<T>(items: T[], from: number, to: number): T[] {
@@ -152,6 +164,7 @@ export const EMPTY_PROFILE = (id: string): Profile => ({
   full_name: null,
   display_name: null,
   bio: null,
+  about: null,
   avatar_url: null,
   theme_color: DEFAULT_THEME_COLOR,
 });

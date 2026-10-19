@@ -195,9 +195,10 @@ export class NfcManagerService {
   }
 
   /**
-   * Liga o reader mode para a tela `owner`. Idempotente: se já estiver ativo só troca o dono/handler.
-   * `passive` (Home): só no Android nativo — no iOS registerTagEvent abre a folha do sistema,
-   * e no web/simulação a Home não pode "ler sozinha".
+   * Liga o reader mode via `registerTagEvent` para a tela `owner`.
+   * Preferir `requestTechnologyWithTimeout` (Reader Mode na sessão de tech) para captura ativa;
+   * este caminho serve sobretudo ao hold passivo no Android (ex. resultado da leitura).
+   * `passive`: só no Android nativo — no iOS registerTagEvent abre a folha do sistema.
    */
   startForegroundDispatch(owner: string, onTag: TagHandler, options?: { passive?: boolean; onError?: ErrorHandler; once?: boolean }): Promise<boolean> {
     return this.exclusive(async () => {

@@ -82,10 +82,10 @@ describe('URLs da plaquinha', () => {
 
   it('domínio curto: padrão de produção, sobrescrito por EXPO_PUBLIC_SHORT_LINK_BASE válido', () => {
     expect(resolveShortLinkBase(undefined)).toBe(DEFAULT_SHORT_LINK_BASE);
-    expect(DEFAULT_SHORT_LINK_BASE).toBe('https://treville-aproxima.expo.app');
+    expect(DEFAULT_SHORT_LINK_BASE).toBe('https://nfc-manager.expo.app');
     expect(resolveShortLinkBase('https://Meu.Dominio.com.br/')).toBe('https://meu.dominio.com.br');
-    expect(shortLinkPrefix('https://treville-aproxima.expo.app')).toBe('https://treville-aproxima.expo.app/t');
-    expect(buildLinkUrl(shortLinkPrefix(DEFAULT_SHORT_LINK_BASE), 'ABC234', 'nfc')).toBe('https://treville-aproxima.expo.app/t/ABC234?s=nfc');
+    expect(shortLinkPrefix('https://nfc-manager.expo.app')).toBe('https://nfc-manager.expo.app/t');
+    expect(buildLinkUrl(shortLinkPrefix(DEFAULT_SHORT_LINK_BASE), 'ABC234', 'nfc')).toBe('https://nfc-manager.expo.app/t/ABC234?s=nfc');
   });
 
   it.each(['', 'http://treville.com', 'https://treville.com/t', 'javascript:alert(1)', 'https://localhost'])('domínio curto inválido %p cai no padrão', (value) => {
@@ -94,7 +94,7 @@ describe('URLs da plaquinha', () => {
 
   it('abrevia sem inventar domínio', () => {
     expect(shortDisplayUrl('https://fyavoukktjysxtmtkspd.supabase.co/functions/v1/redirect/ABC234')).toBe('fyavoukktjysxtmtkspd.supabase.co/…/ABC234');
-    expect(shortDisplayUrl('https://treville-aproxima.expo.app/t/ABC234')).toBe('treville-aproxima.expo.app/t/ABC234');
+    expect(shortDisplayUrl('https://nfc-manager.expo.app/t/ABC234')).toBe('nfc-manager.expo.app/t/ABC234');
   });
 });
 

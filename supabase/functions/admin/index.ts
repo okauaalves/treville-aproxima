@@ -36,12 +36,13 @@ import {
   type ProfileRow,
   type Section,
 } from '../_shared/adminOverview.ts';
+import { resolveProfilePageBaseFromEnv } from '../_shared/hostingUrl.ts';
 
 // deno-lint-ignore no-explicit-any
 type Client = SupabaseClient<any, 'public', any>;
 
-const DEFAULT_PROFILE_PAGE_BASE = 'https://treville-aproxima.expo.app/p';
-const DEFAULT_INVITE_REDIRECT = 'treville://auth/callback';
+/** Ponte HTTPS: no PC mostra HTML; no celular abre o app. Também aceite treville://auth/callback nas Redirect URLs. */
+const DEFAULT_INVITE_REDIRECT = 'https://nfc-manager.expo.app/auth/open';
 const ACTIONS = new Set(['overview', 'stats', 'export', 'cleanup', 'access_list', 'access_set_status', 'invite', 'batch_create', 'pending_count']);
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -385,8 +386,7 @@ async function inviteUser(admin: Client, body: Record<string, unknown>, callerId
 }
 
 function profilePageBase(): string {
-  const value = (Deno.env.get('PROFILE_PAGE_URL') ?? '').trim().replace(/\/+$/, '');
-  return /^https:\/\/[^/\s]+/.test(value) ? value : DEFAULT_PROFILE_PAGE_BASE;
+  return resolveProfilePageBaseFromEnv();
 }
 
 /** Um insert multi-linha por bloco; colisão de ID (23505) refaz o bloco inteiro com IDs novos. */

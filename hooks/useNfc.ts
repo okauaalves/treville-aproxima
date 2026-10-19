@@ -90,6 +90,7 @@ export function useNfc() {
     useNfcStore.getState().setScanning(false);
   }
 
+  /** Preferir `useNfcTechSession` para captura ativa; este wrapper resta para compatibilidade. */
   async function registerTagEvent(
     onTag: (tag: NfcTag, records: ParsedRecord[]) => void,
     onError?: (error: NfcError) => void,

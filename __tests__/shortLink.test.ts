@@ -6,7 +6,7 @@ const FUNCTION = `${PROJECT}/functions/v1/redirect`;
 const SECRET = 'a'.repeat(48);
 
 function visit(path: string, headers: Record<string, string> = {}, method = 'GET') {
-  return new Request(`https://treville-aproxima--abc123.expo.app${path}`, {
+  return new Request(`https://nfc-manager--abc123.expo.app${path}`, {
     method,
     headers: { 'user-agent': 'Mozilla/5.0 (Android) Celular', 'x-real-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.70.1.1', ...headers },
   });
@@ -50,7 +50,7 @@ describe('link curto /t/[id]', () => {
     expect(fetchMock).toHaveBeenCalledWith(`${FUNCTION}/K7M2QX`, expect.objectContaining({ method: 'GET', redirect: 'manual' }));
   });
 
-  it.each(['mailto:a@b.com', 'tel:+5511999998888', 'sms:+5511999998888', 'https://treville-aproxima.expo.app/p/K7M2QX'])('aceita Location %p', async (location) => {
+  it.each(['mailto:a@b.com', 'tel:+5511999998888', 'sms:+5511999998888', 'https://nfc-manager.expo.app/p/K7M2QX'])('aceita Location %p', async (location) => {
     const response = await handler(upstream(302, { Location: location }))(visit('/t/K7M2QX'), 'K7M2QX');
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe(location);
@@ -62,7 +62,7 @@ describe('link curto /t/[id]', () => {
   });
 
   it('erro da função redirecionado para /p/erro/<code> do nosso domínio vira a página direto', async () => {
-    const response = await handler(upstream(302, { Location: 'https://treville-aproxima.expo.app/p/erro/410' }))(visit('/t/K7M2QX'), 'K7M2QX');
+    const response = await handler(upstream(302, { Location: 'https://nfc-manager.expo.app/p/erro/410' }))(visit('/t/K7M2QX'), 'K7M2QX');
     expectHtmlPage(response, 410);
   });
 

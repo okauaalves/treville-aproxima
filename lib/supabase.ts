@@ -3,11 +3,14 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import { Config } from '@/constants/config';
 import { classifyAuthCallback, isExpiredLinkMessage, isProviderDisabledMessage, parseAuthCallback } from '@/lib/authCallback';
-import { getAuthRedirect } from '@/lib/authRedirect';
+import { getAuthRedirect, getEmailAuthRedirect } from '@/lib/authRedirect';
+
+const GOOGLE_AUTH_TIMEOUT_MS = 15_000;
 
 export const GOOGLE_DISABLED_MESSAGE = 'Login com Google ainda não está ativado no servidor.';
 /** Não confirma nem nega a conta além do necessário para orientar quem já é cliente. */
@@ -87,6 +90,9 @@ export function translateAuthError(error: unknown): string {
   }
   if (message.includes('signups not allowed') || message.includes('signup is disabled') || message.includes('signup_disabled')) {
     return 'O cadastro de novas contas está desativado no servidor.';
+  }
+  if (message.includes('auth_timeout') || message.includes('tempo esgotado')) {
+    return 'Tempo esgotado ao conectar. Tente novamente.';
   }
   if (message.includes('network') || message.includes('fetch') || message.includes('failed to fetch')) {
     return 'Sem conexão. Tente novamente.';
@@ -215,7 +221,7 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName }, emailRedirectTo: getAuthRedirect() },
+    options: { data: { full_name: fullName }, emailRedirectTo: getEmailAuthRedirect() },
   });
   if (error) {
     throw error;
@@ -230,31 +236,101 @@ export async function signInWithGoogle(): Promise<Session | null> {
   if ((await googleProviderEnabled()) === false) {
     throw new Error('provider is not enabled');
   }
+  const client = supabase;
   const web = Platform.OS === 'web';
   const redirectTo = getAuthRedirect();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-      queryParams: { access_type: 'offline', prompt: 'consent' },
-      skipBrowserRedirect: !web,
-    },
-  });
-  if (error) {
-    throw error;
-  }
+
   if (web) {
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+        skipBrowserRedirect: false,
+      },
+    });
+    if (error) {
+      throw error;
+    }
     // A página sai para o Google e volta em /auth/callback, que conclui a sessão.
     return null;
   }
-  if (!data.url) {
-    throw new Error('oauth_url_missing');
-  }
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== 'success') {
-    return null;
-  }
-  return createSessionFromUrl(result.url);
+
+  // Listener ANTES do OAuth: no Android o deep link pode chegar fora do openAuthSessionAsync.
+  return new Promise<Session | null>((resolve, reject) => {
+    let settled = false;
+    let subscription: { remove: () => void } | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      subscription?.remove();
+      subscription = null;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (dismissTimer) {
+        clearTimeout(dismissTimer);
+        dismissTimer = null;
+      }
+    };
+
+    const finish = (session: Session | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(session);
+    };
+    const fail = (error: unknown) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    const acceptUrl = (url: string) => {
+      if (!url || !/auth\/callback/i.test(url)) {
+        return;
+      }
+      void createSessionFromUrl(url).then(finish).catch(fail);
+    };
+
+    subscription = Linking.addEventListener('url', ({ url }) => acceptUrl(url));
+    timer = setTimeout(() => fail(new Error('auth_timeout')), GOOGLE_AUTH_TIMEOUT_MS);
+
+    void (async () => {
+      try {
+        const { data, error } = await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo,
+            queryParams: { access_type: 'offline', prompt: 'consent' },
+            skipBrowserRedirect: true,
+          },
+        });
+        if (error) {
+          throw error;
+        }
+        if (!data.url) {
+          throw new Error('oauth_url_missing');
+        }
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        if (result.type === 'success' && result.url) {
+          acceptUrl(result.url);
+          return;
+        }
+        // Cancel/dismiss: ainda pode chegar deep link; dá uma janela curta e libera o loading.
+        dismissTimer = setTimeout(() => finish(null), 1_500);
+      } catch (error) {
+        fail(error);
+      }
+    })();
+  });
 }
 
 export async function updatePassword(password: string): Promise<void> {
@@ -271,7 +347,7 @@ export async function resetPassword(email: string): Promise<void> {
   if (!supabase) {
     throw new Error('LOCAL');
   }
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirect() });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: getEmailAuthRedirect() });
   if (error) {
     throw error;
   }

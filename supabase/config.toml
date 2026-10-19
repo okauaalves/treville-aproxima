@@ -3,3 +3,7 @@ project_id = "fyavoukktjysxtmtkspd"
 # QR Code e tag NFC são abertos por qualquer celular, sem sessão: a função não exige JWT.
 [functions.redirect]
 verify_jwt = false
+
+# Página pública da marca (Minha Página): plaquinha_id ou custom_slug, sem sessão.
+[functions.brand-page]
+verify_jwt = false

@@ -5,7 +5,7 @@
 -- Pode rodar de novo sem efeito colateral. Quem usa a CLI deve continuar com `supabase db push`.
 --
 -- NÃO EDITE À MÃO. Gerado por scripts/build-setup-sql.mjs a partir de supabase/migrations/
--- (migrações commitadas no HEAD):
+-- (arquivos do disco):
 --   - 20260930120000_init.sql
 --   - 20260930130000_profiles.sql
 --   - 20261011220000_redirect_links.sql
@@ -16,6 +16,9 @@
 --   - 20261014010000_edit_requests.sql
 --   - 20261014020000_updated_at_triggers.sql
 --   - 20261014030000_schema_compat.sql
+--   - 20261015194038_brand_pages.sql
+--   - 20261015201000_brand_pages_custom_slug.sql
+--   - 20261015203000_brand_links_unique_type.sql
 --
 -- Funções que mudam de retorno entre migrações (recebem drop antes de recriar):
 --   - public.increment_scan_count(text)
@@ -307,12 +310,22 @@ create table if not exists public.profile_links (
   user_id uuid not null references auth.users (id) on delete cascade,
   plaquinha_id text not null references public.redirect_links (id) on delete cascade,
   title text not null check (char_length(title) between 1 and 60),
+  subtitle text check (subtitle is null or char_length(subtitle) <= 120),
   url text not null check (url ~* '^(https?|mailto|tel|sms):' and char_length(url) <= 2048),
   icon text not null default 'link' check (icon ~ '^[a-z_]{1,24}$'),
   position integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.profile_links
+  add column if not exists subtitle text;
+
+alter table public.profile_links drop constraint if exists profile_links_subtitle_len;
+alter table public.profile_links
+  add constraint profile_links_subtitle_len
+  check (subtitle is null or char_length(subtitle) <= 120)
+  not valid;
 
 create index if not exists profile_links_plaquinha_position_idx on public.profile_links (plaquinha_id, position);
 create index if not exists profile_links_user_id_idx on public.profile_links (user_id);
@@ -355,7 +368,7 @@ begin
       where coalesce(e ->> 'id', '') <> ''
     );
 
-  insert into public.profile_links (id, user_id, plaquinha_id, title, url, icon, position, is_active)
+  insert into public.profile_links (id, user_id, plaquinha_id, title, url, icon, subtitle, position, is_active)
   select
     coalesce(nullif(e ->> 'id', '')::uuid, gen_random_uuid()),
     auth.uid(),
@@ -363,6 +376,7 @@ begin
     e ->> 'title',
     e ->> 'url',
     coalesce(nullif(e ->> 'icon', ''), 'link'),
+    nullif(trim(coalesce(e ->> 'subtitle', '')), ''),
     (t.ord - 1)::integer,
     coalesce((e ->> 'is_active')::boolean, true)
   from jsonb_array_elements(p_links) with ordinality as t(e, ord)
@@ -370,6 +384,7 @@ begin
     set title = excluded.title,
         url = excluded.url,
         icon = excluded.icon,
+        subtitle = excluded.subtitle,
         position = excluded.position,
         is_active = excluded.is_active
     where public.profile_links.user_id = auth.uid()
@@ -1313,3 +1328,160 @@ alter table public.profiles
 -- O contador era executável pela anon em instalações manuais.
 revoke execute on function public.increment_scan_count(text) from public, anon, authenticated;
 grant execute on function public.increment_scan_count(text) to service_role;
+
+-- -----------------------------------------------------------------------------
+-- 20261015194038_brand_pages.sql
+-- -----------------------------------------------------------------------------
+
+-- Minha Página: brand_pages + brand_links + storage brand-assets.
+-- plaquinha_id referencia redirect_links(id) (TEXT), alinhado ao schema existente.
+
+create table if not exists public.brand_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  plaquinha_id text references public.redirect_links (id) on delete cascade,
+  brand_name text,
+  tagline text,
+  logo_url text,
+  theme_mode text not null default 'dark' check (theme_mode in ('dark', 'light', 'balanced')),
+  primary_color text,
+  secondary_color text,
+  accent_color text,
+  background_color text,
+  text_color text,
+  border_color text,
+  is_published boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id)
+);
+
+create table if not exists public.brand_links (
+  id uuid primary key default gen_random_uuid(),
+  brand_page_id uuid not null references public.brand_pages (id) on delete cascade,
+  link_type text not null check (link_type in ('social', 'instagram', 'google_reviews', 'portfolio', 'about', 'contact')),
+  label text,
+  description text,
+  destination_url text,
+  position integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists brand_pages_user_id_idx on public.brand_pages (user_id);
+create index if not exists brand_pages_plaquinha_id_idx on public.brand_pages (plaquinha_id);
+create index if not exists brand_links_brand_page_id_idx on public.brand_links (brand_page_id, position);
+
+drop trigger if exists brand_pages_set_updated_at on public.brand_pages;
+create trigger brand_pages_set_updated_at
+  before update on public.brand_pages
+  for each row execute function public.set_updated_at();
+
+alter table public.brand_pages enable row level security;
+alter table public.brand_links enable row level security;
+
+drop policy if exists owner_full_access_pages on public.brand_pages;
+create policy owner_full_access_pages on public.brand_pages
+  for all
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists public_read_published_pages on public.brand_pages;
+create policy public_read_published_pages on public.brand_pages
+  for select
+  to anon, authenticated
+  using (is_published = true);
+
+drop policy if exists owner_full_access_links on public.brand_links;
+create policy owner_full_access_links on public.brand_links
+  for all
+  to authenticated
+  using (
+    exists (
+      select 1 from public.brand_pages
+      where id = brand_page_id and user_id = (select auth.uid())
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.brand_pages
+      where id = brand_page_id and user_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists public_read_published_links on public.brand_links;
+create policy public_read_published_links on public.brand_links
+  for select
+  to anon, authenticated
+  using (
+    exists (
+      select 1 from public.brand_pages
+      where id = brand_page_id and is_published = true
+    )
+  );
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'brand-assets',
+  'brand-assets',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists brand_assets_select_public on storage.objects;
+create policy brand_assets_select_public on storage.objects
+  for select
+  to anon, authenticated
+  using (bucket_id = 'brand-assets');
+
+drop policy if exists brand_assets_insert_own on storage.objects;
+create policy brand_assets_insert_own on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'brand-assets' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists brand_assets_update_own on storage.objects;
+create policy brand_assets_update_own on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'brand-assets' and (storage.foldername(name))[1] = (select auth.uid())::text)
+  with check (bucket_id = 'brand-assets' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists brand_assets_delete_own on storage.objects;
+create policy brand_assets_delete_own on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'brand-assets' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- -----------------------------------------------------------------------------
+-- 20261015201000_brand_pages_custom_slug.sql
+-- -----------------------------------------------------------------------------
+
+-- Slug público opcional para Minha Página (além de plaquinha_id).
+alter table public.brand_pages
+  add column if not exists custom_slug text;
+
+alter table public.brand_pages drop constraint if exists brand_pages_custom_slug_format;
+alter table public.brand_pages add constraint brand_pages_custom_slug_format
+  check (
+    custom_slug is null
+    or (custom_slug ~ '^[a-z0-9]([a-z0-9-]{1,46}[a-z0-9])?$' and char_length(custom_slug) between 3 and 48)
+  ) not valid;
+
+create unique index if not exists brand_pages_custom_slug_uidx
+  on public.brand_pages (custom_slug)
+  where custom_slug is not null;
+
+-- -----------------------------------------------------------------------------
+-- 20261015203000_brand_links_unique_type.sql
+-- -----------------------------------------------------------------------------
+
+-- Upsert de brand_links por (brand_page_id, link_type).
+create unique index if not exists brand_links_page_type_uidx
+  on public.brand_links (brand_page_id, link_type);

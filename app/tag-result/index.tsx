@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -38,7 +38,8 @@ import { nfcManager } from '@/core/nfc/NfcManager';
 import { getPendingRead, setPendingRead } from '@/core/nfc/pendingRead';
 import { formatUid } from '@/core/nfc/TagAnalyzer';
 import { CHIP_LABELS, describeRecord, identifyTechnologies } from '@/core/nfc/technical';
-import { useDispatchState, useReadLock, useTagDispatch } from '@/hooks/useTagDispatch';
+import { useNfcTechSession } from '@/hooks/useNfcTechSession';
+import { useTagDispatch } from '@/hooks/useTagDispatch';
 import { plaquinhaCodeFromLink } from '@/lib/editAccessLogic';
 import { openNfcFlow } from '@/lib/nfcEntry';
 import { getPlaquinha, plaquinhasAvailable } from '@/lib/plaquinhas';
@@ -80,7 +81,11 @@ const KIND_ICONS: Record<ReadKind, LucideIcon> = {
   rfid: Nfc,
 };
 
-/** Reader mode só fica "segurando" a tag no Android nativo; nas outras plataformas a leitura é reaberta sob demanda. */
+/**
+ * Após a leitura, no Android nativo mantém registerTagEvent+reader mode só para "engolir"
+ * redispatches enquanto a tag segue encostada (senão o Chrome abre o link). Novas leituras
+ * usam requestTechnology via useNfcTechSession.
+ */
 const HOLDS_READER = Platform.OS === 'android' && nfcManager.getMode() === 'native';
 
 export default function TagResultScreen() {
@@ -91,9 +96,8 @@ export default function TagResultScreen() {
   const [records, setRecords] = useState<ParsedRecord[]>(pending?.records ?? []);
   const [armed, setArmed] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const locked = useReadLock();
   const summary = useMemo(() => summarizeRead(tag, records), [tag, records]);
-  const waiting = armed && !locked;
+  const waiting = armed;
   const user = useAuthStore((state) => state.user);
   const plaquinhaCode = useMemo(() => plaquinhaCodeFromLink(summary.href, Config.shortLinkBase), [summary.href]);
   const [foreign, setForeign] = useState<string | null>(null);
@@ -116,32 +120,29 @@ export default function TagResultScreen() {
     };
   }, [plaquinhaCode, user]);
 
-  useTagDispatch(
-    (next, nextRecords) => {
-      setTag(next);
-      setRecords(nextRecords);
-      setPendingRead(next, nextRecords);
-      setArmed(false);
-      setExpanded(false);
-      void persistReadOperation(next, nextRecords).catch(() => undefined);
-    },
-    { once: true, passive: HOLDS_READER || !armed },
-  );
+  function applyTag(next: NfcTag, nextRecords: ParsedRecord[]) {
+    setTag(next);
+    setRecords(nextRecords);
+    setPendingRead(next, nextRecords);
+    setArmed(false);
+    setExpanded(false);
+    void persistReadOperation(next, nextRecords).catch(() => undefined);
+  }
 
-  const dispatchActive = useDispatchState().active;
-  const wasActive = useRef(false);
-  useEffect(() => {
-    if (HOLDS_READER || !armed) {
-      wasActive.current = false;
-      return;
-    }
-    if (dispatchActive) {
-      wasActive.current = true;
-    } else if (wasActive.current) {
-      wasActive.current = false;
-      setArmed(false);
-    }
-  }, [armed, dispatchActive]);
+  // "Ler novamente": sessão ativa com requestTechnology + Reader Mode.
+  useNfcTechSession(applyTag, {
+    enabled: armed,
+    once: true,
+    alertMessage: 'Aproxime a tag para ler novamente',
+    onError: () => setArmed(false),
+  });
+
+  // Hold Android: engole redispatches com a tag encostada (não é sessão de captura ativa).
+  useTagDispatch(applyTag, {
+    enabled: HOLDS_READER && !armed,
+    once: true,
+    passive: true,
+  });
 
   function close() {
     if (router.canDismiss()) {

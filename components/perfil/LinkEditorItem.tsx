@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Toggle } from '@/components/ui/Toggle';
 import { httpWarning } from '@/components/plaquinha/DestinoForm';
 import { normalizeLinkUrl, presetFor, type ProfileLink } from '@/lib/perfilLogic';
-import { LINK_TITLE_MAX } from '@/supabase/functions/_shared/profilePage';
+import { LINK_SUBTITLE_MAX, LINK_TITLE_MAX } from '@/supabase/functions/_shared/profilePage';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeContext';
@@ -63,6 +63,14 @@ export function LinkEditorItem({
           <Toggle value={link.is_active} onValueChange={(value) => onChange({ is_active: value })} accessibilityLabel={link.is_active ? `Ocultar ${label}` : `Mostrar ${label}`} />
         </View>
         <Input label="Título" value={link.title} onChangeText={(title) => onChange({ title: title.slice(0, LINK_TITLE_MAX) })} maxLength={LINK_TITLE_MAX} containerStyle={{ marginBottom: 0 }} />
+        <Input
+          label="Subtítulo (opcional)"
+          value={link.subtitle}
+          onChangeText={(subtitle) => onChange({ subtitle: subtitle.slice(0, LINK_SUBTITLE_MAX) })}
+          maxLength={LINK_SUBTITLE_MAX}
+          placeholder="Ex.: Conecte-se comigo"
+          containerStyle={{ marginBottom: 0 }}
+        />
         <Input
           label="Link"
           value={link.url}

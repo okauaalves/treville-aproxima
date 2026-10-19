@@ -30,7 +30,7 @@ describe('lib/adminAccess', () => {
 
   it('lookup aceita o link curto /t/<ID> colado', async () => {
     rpc.mockResolvedValueOnce({ data: [{ id: 'K7M2QX', name: 'Mesa 1' }], error: null });
-    await expect(api.lookupPlaquinha('https://treville-aproxima.expo.app/t/k7m2qx?s=nfc')).resolves.toEqual({ id: 'K7M2QX', name: 'Mesa 1' });
+    await expect(api.lookupPlaquinha('https://nfc-manager.expo.app/t/k7m2qx?s=nfc')).resolves.toEqual({ id: 'K7M2QX', name: 'Mesa 1' });
     expect(rpc).toHaveBeenCalledWith('lookup_plaquinha', { p_code: 'K7M2QX' });
   });
 

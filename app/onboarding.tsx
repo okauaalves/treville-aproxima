@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
-import { Check, IdCard, Nfc, QrCode } from 'lucide-react-native';
+import { Check, Download, IdCard, Nfc, QrCode } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
+import Head from 'expo-router/head';
 
 import { Screen } from '@/components/layout/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { APP_NAME, isLatestApkUrlConfigured, LATEST_APK_URL } from '@/constants/config';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { markOnboardingDone } from '@/lib/bootRoute';
+import { useAndroidWebClient } from '@/lib/device';
 import { push, replace } from '@/lib/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useBootStore } from '@/stores/bootStore';
@@ -82,8 +85,12 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const [accepted, setAccepted] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [apkError, setApkError] = useState('');
+  const androidWeb = useAndroidWebClient();
   const heroSize = Math.round(Math.min(isTabletUp ? 200 : 150, height * 0.2));
   const last = index === LAST;
+  const webLanding = Platform.OS === 'web';
+  const apkReady = isLatestApkUrlConfigured();
 
   useEffect(() => {
     if (width) {
@@ -123,8 +130,48 @@ export default function OnboardingScreen() {
     }
   }
 
+  function continueInBrowser() {
+    if (last) {
+      void finish();
+      return;
+    }
+    goTo(index + 1);
+  }
+
+  function downloadApk() {
+    if (!apkReady) {
+      setApkError('Link do APK ainda não configurado. Atualize LATEST_APK_URL após o build de produção.');
+      return;
+    }
+    setApkError('');
+    void Linking.openURL(LATEST_APK_URL).catch(() => {
+      setApkError('Não foi possível abrir o download do APK.');
+    });
+  }
+
+  const landingTitle = webLanding ? `${APP_NAME} — NFC e QR dinâmicos` : `${APP_NAME} — Começar`;
+  const landingDescription = webLanding
+    ? 'Configure plaquinhas NFC e QR Code dinâmicos, publique seu perfil digital e Minha Página. Aproxime, configure e conecte.'
+    : 'Apresentação do Tréville Aproxima: tags NFC, QR dinâmico e perfil digital.';
+
   return (
     <Screen maxWidth={720}>
+      {Platform.OS === 'web' ? (
+        <Head>
+          <title>{landingTitle}</title>
+          <meta name="description" content={landingDescription} />
+          <meta name="robots" content="index, follow" />
+          <meta property="og:type" content="website" />
+          <meta property="og:title" content={landingTitle} />
+          <meta property="og:description" content={landingDescription} />
+          <meta property="og:url" content="https://nfc-manager.expo.app/onboarding" />
+          <meta property="og:image" content="https://nfc-manager.expo.app/favicon.png" />
+          <meta name="twitter:card" content="summary" />
+          <meta name="twitter:title" content={landingTitle} />
+          <meta name="twitter:description" content={landingDescription} />
+          <link rel="canonical" href="https://nfc-manager.expo.app/onboarding" />
+        </Head>
+      ) : null}
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 12, minHeight: 56 }}>
         {last ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel="Pular apresentação" hitSlop={12} onPress={() => goTo(LAST)} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
@@ -197,14 +244,52 @@ export default function OnboardingScreen() {
             <Text style={[{ color: colors.textMuted, fontSize: fs(12) }, inter('regular')]}>Use o NFC só em tags suas ou com permissão do dono. Uma trava permanente não tem volta.</Text>
           </View>
         ) : null}
-        <PrimaryButton
-          key={last ? 'start' : 'next'}
-          label={last ? 'Começar' : 'Próximo'}
-          fullWidth
-          loading={finishing}
-          disabled={last && !accepted}
-          onPress={() => (last ? void finish() : goTo(index + 1))}
-        />
+        {apkError ? <Text accessibilityRole="alert" style={[{ color: colors.error, fontSize: fs(13) }, inter('medium')]}>{apkError}</Text> : null}
+        {webLanding && androidWeb ? (
+          <View style={{ gap: 10 }}>
+            <PrimaryButton
+              label="Baixar app Android (.apk)"
+              fullWidth
+              icon={<Download color={colors.onPrimary} size={18} />}
+              onPress={downloadApk}
+            />
+            <PrimaryButton
+              key={last ? 'web-start' : 'web-next'}
+              label="Continuar no navegador"
+              variant="secondary"
+              fullWidth
+              loading={finishing}
+              disabled={last && !accepted}
+              onPress={continueInBrowser}
+            />
+          </View>
+        ) : (
+          <View style={{ gap: 10 }}>
+            <PrimaryButton
+              key={last ? 'start' : 'next'}
+              label={last ? 'Começar' : 'Próximo'}
+              fullWidth
+              loading={finishing}
+              disabled={last && !accepted}
+              onPress={continueInBrowser}
+            />
+            {webLanding && last ? (
+              <View style={{ gap: 6 }}>
+                <PrimaryButton
+                  label="Baixar app Android (.apk)"
+                  variant="secondary"
+                  fullWidth
+                  disabled
+                  icon={<Download color={colors.textMuted} size={18} />}
+                  accessibilityLabel="Baixar app Android, disponível só pra Android por enquanto"
+                />
+                <Text style={[{ color: colors.textMuted, fontSize: fs(12), textAlign: 'center' }, inter('regular')]}>
+                  Disponível só pra Android por enquanto
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        )}
       </View>
     </Screen>
   );

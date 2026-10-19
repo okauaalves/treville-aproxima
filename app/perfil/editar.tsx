@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { Camera, Check } from 'lucide-react-native';
+import { Check, ImagePlus, Upload } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,14 +12,16 @@ import { ProfileMiniPreview } from '@/components/perfil/ProfileMiniPreview';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/states';
+import { borderAccentFromPalette, extractPaletteFromImage } from '@/lib/colorExtraction';
 import { getProfile, updateProfile, uploadAvatar } from '@/lib/perfil';
 import { goToLogin } from '@/lib/navigation';
 import { isSessionError, plaquinhasAvailable } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
-import { BIO_MAX, DEFAULT_THEME_COLOR, DISPLAY_NAME_MAX, PROFILE_COLORS } from '@/supabase/functions/_shared/profilePage';
+import { ABOUT_MAX, BIO_MAX, DEFAULT_THEME_COLOR, DISPLAY_NAME_MAX, PROFILE_COLORS } from '@/supabase/functions/_shared/profilePage';
 import { inter } from '@/theme/fonts';
 import { useTheme } from '@/theme/ThemeContext';
 
@@ -48,6 +50,7 @@ export default function EditarPerfilScreen() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
+  const [about, setAbout] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_THEME_COLOR);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export default function EditarPerfilScreen() {
       const profile = await getProfile();
       setName(profile.display_name ?? '');
       setBio(profile.bio ?? '');
+      setAbout(profile.about ?? '');
       setColor(profile.theme_color || DEFAULT_THEME_COLOR);
       setAvatarUrl(profile.avatar_url);
       setFallbackName(profile.full_name ?? '');
@@ -88,11 +92,23 @@ export default function EditarPerfilScreen() {
     }, [load]),
   );
 
-  async function pickPhoto() {
+  async function pickLogo() {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.9,
+      });
       if (!result.canceled && result.assets[0]?.uri) {
-        setPendingAvatar(result.assets[0].uri);
+        const uri = result.assets[0].uri;
+        setPendingAvatar(uri);
+        try {
+          const palette = await extractPaletteFromImage(uri);
+          setColor(borderAccentFromPalette(palette));
+        } catch {
+          // Mantém a cor atual; fallback azul já vem da extração em falha.
+        }
       }
     } catch {
       useToastStore.getState().show('Não foi possível abrir a galeria.', 'error');
@@ -106,7 +122,7 @@ export default function EditarPerfilScreen() {
       if (pendingAvatar) {
         nextAvatar = await uploadAvatar(pendingAvatar);
       }
-      const saved = await updateProfile({ displayName: name, bio, themeColor: color, avatarUrl: nextAvatar });
+      const saved = await updateProfile({ displayName: name, bio, about, themeColor: color, avatarUrl: nextAvatar });
       setAvatarUrl(saved.avatar_url);
       setPendingAvatar(null);
       useToastStore.getState().show('Perfil salvo.', 'success');
@@ -144,15 +160,19 @@ export default function EditarPerfilScreen() {
       ) : (
         <ScrollView testID="perfil-editar" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 24) + 8, gap: 14 }}>
           <Card padding={18}>
-            <View style={{ alignItems: 'center', gap: 10 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Trocar foto do perfil" onPress={() => void pickPhoto()} style={{ position: 'relative' }}>
+            <View style={{ alignItems: 'center', gap: 14 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={avatarUri ? 'Trocar logo' : 'Adicionar logo'} onPress={() => void pickLogo()}>
                 <ProfileAvatar uri={avatarUri} name={shownName || 'Perfil'} color={color} size={96} />
-                <View style={{ position: 'absolute', right: -2, bottom: -2, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
-                  <Camera color={colors.onPrimary} size={16} />
-                </View>
               </Pressable>
-              <Text style={[{ color: colors.textSecondary, fontSize: fs(12) }, inter('medium')]}>
-                {pendingAvatar ? 'Foto nova: será enviada ao salvar.' : 'Toque na foto para trocar.'}
+              <SecondaryButton
+                label={avatarUri ? 'Trocar logo' : 'Adicionar logo'}
+                icon={avatarUri ? <Upload color={colors.textPrimary} size={16} /> : <ImagePlus color={colors.textPrimary} size={16} />}
+                onPress={() => void pickLogo()}
+                fullWidth
+                accessibilityLabel={avatarUri ? 'Trocar logo' : 'Adicionar logo'}
+              />
+              <Text style={[{ color: colors.textSecondary, fontSize: fs(12), textAlign: 'center' }, inter('medium')]}>
+                {pendingAvatar ? 'Logo nova: será enviada ao salvar.' : 'Galeria no celular; arquivo de imagem no web. Redimensionamos antes do envio.'}
               </Text>
             </View>
           </Card>
@@ -165,15 +185,39 @@ export default function EditarPerfilScreen() {
               maxLength={DISPLAY_NAME_MAX}
               placeholder={fallbackName || 'Como você quer aparecer'}
             />
-            <Input label="Bio" value={bio} onChangeText={(value) => setBio(value.slice(0, BIO_MAX))} maxLength={BIO_MAX} multiline placeholder="Uma frase curta sobre você ou seu negócio" containerStyle={{ marginBottom: 4 }} />
+            <Input label="Frase de efeito" value={bio} onChangeText={(value) => setBio(value.slice(0, BIO_MAX))} maxLength={BIO_MAX} multiline placeholder="Ex.: Conectando pessoas e oportunidades" containerStyle={{ marginBottom: 4 }} />
             <Text style={[{ color: bio.length >= BIO_MAX ? colors.warning : colors.textMuted, fontSize: fs(12), textAlign: 'right' }, inter('medium')]}>
               {bio.length}/{BIO_MAX}
+            </Text>
+            <Input
+              label="Sobre (opcional)"
+              value={about}
+              onChangeText={(value) => setAbout(value.slice(0, ABOUT_MAX))}
+              maxLength={ABOUT_MAX}
+              multiline
+              placeholder="Descrição mais longa. Aparece ao tocar no logo da página pública."
+              containerStyle={{ marginBottom: 4, marginTop: 10 }}
+              style={{ minHeight: 110 }}
+            />
+            <Text style={[{ color: about.length >= ABOUT_MAX ? colors.warning : colors.textMuted, fontSize: fs(12), textAlign: 'right' }, inter('medium')]}>
+              {about.length}/{ABOUT_MAX}
             </Text>
           </Card>
 
           <Card padding={18}>
             <Label>Cor do perfil</Label>
+            <Text style={[{ color: colors.textSecondary, fontSize: fs(12), marginBottom: 12 }, inter('medium')]}>
+              Extraímos a cor da logo ao enviar; você pode trocar depois.
+            </Text>
             <View accessibilityRole="radiogroup" accessibilityLabel="Cor do perfil" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {!PROFILE_COLORS.includes(color as (typeof PROFILE_COLORS)[number]) ? (
+                <View
+                  accessibilityLabel={`Cor da logo ${color}`}
+                  style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.textPrimary }}
+                >
+                  <Check color="#FFFFFF" size={20} strokeWidth={3} />
+                </View>
+              ) : null}
               {PROFILE_COLORS.map((value) => {
                 const selected = value === color;
                 return (

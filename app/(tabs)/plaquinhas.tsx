@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
-import { CloudOff, KeyRound, Plus, QrCode } from 'lucide-react-native';
+import { CloudOff, KeyRound, Plus, QrCode, ScanLine } from 'lucide-react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -159,6 +159,9 @@ export default function PlaquinhasScreen() {
       right={
         available ? (
           <View style={{ flexDirection: 'row', gap: 4 }}>
+            <IconButton accessibilityLabel="Escanear QR da plaquinha" onPress={() => push('/scan-qr')}>
+              <ScanLine color={colors.primary} size={22} strokeWidth={2.2} />
+            </IconButton>
             <IconButton accessibilityLabel="Solicitar acesso a uma plaquinha" onPress={() => openRequest()}>
               <KeyRound color={colors.primary} size={22} strokeWidth={2.2} />
             </IconButton>

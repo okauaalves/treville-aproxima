@@ -33,12 +33,16 @@ import {
   type ScanLog,
 } from '@/lib/plaquinhas';
 import { useAuthStore } from '@/stores/authStore';
+import { useQrColorStore } from '@/stores/qrColorStore';
 import { useToastStore } from '@/stores/toastStore';
 import { inter } from '@/theme/fonts';
 import { radius } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeContext';
+import { QR_BACKGROUND_COLOR } from '@/utils/qrcode';
 
-const QR_COLOR = '#1E40AF';
+// O QR usa getLinkUrl(id) — URL curta estável da plaquinha.
+// Se a plaquinha estiver ligada a uma brand_page publicada, mudar links/cores/tema
+// NÃO exige gerar outro QR nem regravar NFC: o redirect prioriza renderBrandPage na mesma URL.
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const { colors, fs } = useTheme();
@@ -82,7 +86,8 @@ async function shareOnWeb(dataUri: string | null, name: string, url: string): Pr
 
 export default function PlaquinhaQrScreen() {
   const { colors, fs } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const qrForeground = useQrColorStore((state) => state.foreground);
+  const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const user = useAuthStore((state) => state.user);
   const available = plaquinhasAvailable() && !!user;
   const shotRef = useRef<View>(null);
@@ -91,6 +96,7 @@ export default function PlaquinhaQrScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const openedEdit = useRef(false);
   const [busy, setBusy] = useState<'share' | 'toggle' | null>(null);
   const stats = useMemo(() => aggregateScans(logs, new Date()), [logs]);
 
@@ -105,13 +111,17 @@ export default function PlaquinhaQrScreen() {
       setError(found ? null : 'Essa plaquinha não existe ou não é sua.');
       if (found) {
         setLogs(await getScanStats(id).catch(() => []));
+        if (edit === '1' && !openedEdit.current) {
+          openedEdit.current = true;
+          setEditing(true);
+        }
       }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Não foi possível carregar a plaquinha.');
     } finally {
       setLoading(false);
     }
-  }, [available, id]);
+  }, [available, edit, id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,10 +205,10 @@ export default function PlaquinhaQrScreen() {
                 accessible
                 accessibilityRole="image"
                 accessibilityLabel={`QR Code da plaquinha ${link.name}`}
-                style={{ backgroundColor: 'white', padding: 16, borderRadius: radius.lg, alignItems: 'center' }}
+                style={{ backgroundColor: QR_BACKGROUND_COLOR, padding: 16, borderRadius: radius.lg, alignItems: 'center' }}
               >
-                <QRCode value={getLinkUrl(link.id)} size={220} color={QR_COLOR} backgroundColor="white" ecl="M" />
-                <Text numberOfLines={1} style={[{ color: QR_COLOR, fontSize: 14, marginTop: 10, maxWidth: 220 }, inter('bold')]}>{link.name}</Text>
+                <QRCode value={getLinkUrl(link.id)} size={220} color={qrForeground} backgroundColor={QR_BACKGROUND_COLOR} ecl="M" />
+                <Text numberOfLines={1} style={[{ color: colors.textPrimary, fontSize: 14, marginTop: 10, maxWidth: 220 }, inter('bold')]}>{link.name}</Text>
               </View>
               <Text selectable style={[{ color: colors.textSecondary, fontSize: fs(12), marginTop: 10 }, inter('medium')]}>
                 {shortDisplayUrl(getLinkUrl(link.id))}
